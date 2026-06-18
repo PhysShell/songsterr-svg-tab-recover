@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from fractions import Fraction
 from typing import Dict, List, Optional, Tuple
 
 from .geometry import continuous_subpaths
@@ -39,6 +40,9 @@ class Note:
 class Beat:
     x: float
     notes: List[Note] = field(default_factory=list)
+    duration: Optional[Fraction] = None   # as a fraction of a whole note
+    position: Optional[Fraction] = None   # onset within the measure
+    is_rest: bool = False
 
 
 @dataclass
@@ -46,6 +50,9 @@ class Measure:
     number: int
     line: int
     beats: List[Beat] = field(default_factory=list)
+    # does the sum of beat durations equal the time signature?
+    rhythm_ok: Optional[bool] = None
+    duration_sum: Optional[Fraction] = None
 
 
 @dataclass
@@ -126,8 +133,12 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     measures: Dict[int, Measure] = {}
     unrecognized = 0
 
+    from .rhythm import parse_rhythm
+
     for line in lines:
         rows = string_rows(line.strings_path) if line.strings_path else list(DEFAULT_STRING_ROWS)
+        rl = parse_rhythm(line.rhythm_paths)
+        line_bars = measure_boundaries(line.strings_path) if line.strings_path else []
         # All digit glyphs on this line, tagged with their measure number.
         pairs = []
         for d, measure in line.note_paths:
@@ -166,9 +177,90 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
                 else:
                     measure.beats.append(Beat(x=n.x, notes=[n]))
 
+            # durations from this line's rhythm voice (measures are single-line)
+            for b in measure.beats:
+                if b.duration is None:
+                    b.duration = _beat_duration(b.x, rl)
+
+            # rests: glyphs with no stem that occupy time. Their total duration
+            # is the measure's shortfall, so distribute the deficit across them.
+            bar = _timesig_whole(meta.time_signature)
+            if bar is not None and rl.rests:
+                x0, x1 = _measure_interval(measure.beats, line_bars)
+                rest_xs = sorted(rx for rx, _ in rl.rests if x0 < rx < x1)
+                note_sum = sum((b.duration for b in measure.beats if b.duration), Fraction(0))
+                deficit = bar - note_sum
+                if rest_xs and deficit > 0:
+                    for rx, dur in zip(rest_xs, _dyadic_split(deficit, len(rest_xs))):
+                        measure.beats.append(Beat(x=rx, duration=dur, is_rest=True))
+
+    bar = _timesig_whole(meta.time_signature)
     ordered = [measures[k] for k in sorted(measures)]
     for m in ordered:
         m.beats.sort(key=lambda b: b.x)
+        pos = Fraction(0)
+        total = Fraction(0)
         for b in m.beats:
             b.notes.sort(key=lambda n: n.string)
+            b.position = pos
+            if b.duration is not None:
+                pos += b.duration
+                total += b.duration
+        m.duration_sum = total
+        if bar is not None and any(b.duration for b in m.beats):
+            m.rhythm_ok = (total == bar)
     return TabRecovery(meta=meta, measures=ordered, unrecognized=unrecognized)
+
+
+def _timesig_whole(ts: Optional[str]) -> Optional[Fraction]:
+    """A measure's length as a fraction of a whole note, e.g. '4/4' -> 1."""
+    if not ts or "/" not in ts:
+        return None
+    try:
+        num, den = ts.split("/")
+        return Fraction(int(num), int(den))
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def _measure_interval(beats: List[Beat], bars: List[float]) -> Tuple[float, float]:
+    """The [x0, x1] barline interval enclosing a measure's beats."""
+    if not beats:
+        return (float("-inf"), float("inf"))
+    lo = min(b.x for b in beats)
+    hi = max(b.x for b in beats)
+    left = max((b for b in bars if b < lo), default=float("-inf"))
+    right = min((b for b in bars if b > hi), default=float("inf"))
+    return (left, right)
+
+
+def _dyadic_split(total: Fraction, n: int) -> List[Fraction]:
+    """Split a dyadic duration into n pieces, each a clean note value.
+
+    Greedy: hand out the largest power-of-two fraction not exceeding the share,
+    putting any remainder on the last rest so the pieces sum to ``total``.
+    """
+    if n <= 1:
+        return [total]
+    out: List[Fraction] = []
+    remaining = total
+    for i in range(n - 1):
+        share = remaining / (n - i)
+        # largest 1/2^k <= share
+        d = Fraction(1, 1)
+        while d > share:
+            d /= 2
+        out.append(d)
+        remaining -= d
+    out.append(remaining)
+    return out
+
+
+def _beat_duration(x: float, rl) -> Optional[Fraction]:
+    from .rhythm import beams_over, stem_duration
+    if not rl.stems:
+        return None
+    stem = min(rl.stems, key=lambda s: abs(s.x - x))
+    if abs(stem.x - x) <= 9.0:
+        return stem_duration(stem, rl)
+    return None

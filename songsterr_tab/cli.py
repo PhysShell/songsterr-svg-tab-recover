@@ -139,9 +139,13 @@ def cmd_notes(args) -> int:
             {
                 "number": m.number,
                 "line": m.line,
+                "rhythmOk": m.rhythm_ok,
+                "durationSum": str(m.duration_sum) if m.duration_sum is not None else None,
                 "beats": [
                     {
                         "x": round(b.x, 2),
+                        "duration": str(b.duration) if b.duration is not None else None,
+                        "position": str(b.position) if b.position is not None else None,
                         "notes": [
                             {
                                 "string": n.string + 1,  # 1-based for humans
@@ -169,10 +173,14 @@ def cmd_notes(args) -> int:
             fh.write(render_ascii(rec))
 
     total_notes = sum(len(b.notes) for m in rec.measures for b in m.beats)
+    checked = [m for m in rec.measures if m.rhythm_ok is not None]
+    ok = sum(1 for m in checked if m.rhythm_ok)
     print(f"measures:       {len(rec.measures)}")
     print(f"beats:          {sum(len(m.beats) for m in rec.measures)}")
     print(f"notes:          {total_notes}")
     print(f"unrecognized:   {rec.unrecognized}")
+    if checked:
+        print(f"rhythm valid:   {ok}/{len(checked)} measures sum to the time signature")
     print(f"-> {out_path}")
     if args.ascii:
         print(f"-> {os.path.join(args.out, 'tab.txt')}")

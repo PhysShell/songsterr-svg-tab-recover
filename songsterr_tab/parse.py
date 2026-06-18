@@ -93,6 +93,7 @@ class TabLine:
     strings_path: Optional[str]
     # (d, measure_number)
     note_paths: List[Tuple[str, int]] = field(default_factory=list)
+    rhythm_paths: List[str] = field(default_factory=list)  # vENqEG_voice d-strings
     measure_numbers: List[Tuple[float, int]] = field(default_factory=list)  # (x, number)
     labels: List[Tuple[float, float, str]] = field(default_factory=list)  # (x, y, text)
 
@@ -121,6 +122,8 @@ def parse_lines(html_src: str) -> List[TabLine]:
             )
         ]
 
+        rhythm_paths = re.findall(r'<path d="([^"]+)"[^>]*class="vENqEG_voice"', svg)
+
         measure_numbers = [
             (float(x), int(n))
             for x, n in re.findall(
@@ -141,6 +144,7 @@ def parse_lines(html_src: str) -> List[TabLine]:
                 viewbox=viewbox,
                 strings_path=strings,
                 note_paths=note_paths,
+                rhythm_paths=rhythm_paths,
                 measure_numbers=measure_numbers,
                 labels=labels,
             )

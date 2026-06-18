@@ -179,20 +179,23 @@ python -m tools.generate_templates fixtures/speed-demon.sample.html templates/di
 Working and tested:
 
 - Song metadata: title, artist, track, tempo, time signature, tuning.
-- Stave geometry: string rows, measure boundaries, measure numbers.
+- Stave geometry: string rows (derived per line), measure boundaries, numbers.
 - Fret recovery: string + fret + MIDI per note, chords grouped into beats,
-  multi-digit frets supported.
+  multi-digit frets (the tens digit is no longer dropped). All ten digits 0-9.
+- **Rhythm (first pass)**: durations from the beam/stem voice (beam count ->
+  8th/16th/32nd, augmentation dots, plain quarters), beat onsets, and rests
+  inferred from the measure shortfall. Each measure carries a `rhythmOk` flag
+  (do its durations sum to the time signature). The ASCII tab is spaced
+  proportionally to duration.
 - Debug overlay for visual verification.
 
-Deliberately out of scope for now (clear next steps):
+Rhythm caveats (next steps): half/whole notes, ties/let-ring, and some complex
+beaming aren't fully decoded yet, so on the bundled song ~40% of measures sum
+exactly to the bar; per-note durations are right far more often than that. The
+`rhythmOk` flag tells you which measures to trust.
 
-- **Rhythm / durations** — the beam/stem paths exist below the stave but their
-  duration semantics still need geometric decoding. Without this, notes have
-  pitch+position but no length.
+Still out of scope:
+
 - **Effects** — palm mute / harmonics (text) and slides / ties (effect curves).
-- **MusicXML / GP5 export** — once durations land, the AST can export to
-  MusicXML first (easy to eyeball in MuseScore) and GP5 later via PyGuitarPro.
-
-The current template set covers the digits present in the bundled song
-(`0 3 5 6 7 8 9`). Adding more fixtures extends coverage to `1 2 4` and beyond;
-the recognizer is template-driven, so this is just data.
+- **MusicXML / GP5 export** — the AST now has durations, so MusicXML export is
+  the natural next milestone (eyeball in MuseScore), GP5 later via PyGuitarPro.

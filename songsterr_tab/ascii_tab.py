@@ -1,14 +1,23 @@
 """Render recovered notes as a human-readable ASCII tab.
 
-This is a positional rendering (one column per recovered beat) -- it shows the
-frets on the right strings in the right order, but spacing is not proportional
-to duration (rhythm recovery is a separate, later step).
+Column width is proportional to each beat's recovered duration (a 16th note is
+one unit wide), so the tab reads rhythmically.  Beats whose duration could not
+be recovered fall back to one unit; rests render as dashes.
 """
 from __future__ import annotations
 
+from fractions import Fraction
 from typing import List
 
 from .notes import TabRecovery
+
+_SIXTEENTH = Fraction(1, 16)
+
+
+def _units(duration) -> int:
+    if duration is None:
+        return 1
+    return max(1, round(duration / _SIXTEENTH))
 
 
 def render_ascii(rec: TabRecovery, measures_per_row: int = 4) -> str:
@@ -39,16 +48,17 @@ def render_ascii(rec: TabRecovery, measures_per_row: int = 4) -> str:
         chunk = measures[start:start + measures_per_row]
         rows = [f"{labels[s]}|" for s in range(n_strings)]
         for m in chunk:
-            # one column per beat; column width fits the widest fret in it
-            for beat in m.beats:
+            for beat in sorted(m.beats, key=lambda b: (b.position or 0, b.x)):
                 frets = {note.string: note.fret for note in beat.notes}
-                colw = max((len(str(f)) for f in frets.values()), default=1)
+                label_w = max((len(str(f)) for f in frets.values()), default=1)
+                # cell is at least as wide as the fret label, and as wide as the
+                # beat's duration so rhythm shows in the spacing
+                cell_w = max(label_w, _units(beat.duration))
                 for s in range(n_strings):
                     cell = str(frets[s]) if s in frets else "-"
-                    rows[s] += "-" + cell.rjust(colw, "-")
+                    rows[s] += "-" + cell.ljust(cell_w, "-")
             for s in range(n_strings):
                 rows[s] += "-|"
-        # measure-number ruler
         ruler = " " * (width + 1)
         out.append(ruler + "  ".join(f"m{m.number}" for m in chunk))
         out.extend(rows)
