@@ -14,6 +14,7 @@ from .debug import overlay_line
 from .glyphs import DEFAULT_TEMPLATES, DigitRecognizer
 from .notes import recover
 from .parse import measure_boundaries, parse_lines, parse_meta
+from .state import has_rendered_tab, parse_state
 
 
 def _meta_dict(meta):
@@ -27,9 +28,67 @@ def _meta_dict(meta):
     }
 
 
+def _report_source_only(html_src, out_dir) -> int:
+    """The file is page-source (pre-hydration): metadata only, no tab SVG."""
+    info = parse_state(html_src)
+    if info is None:
+        print("This file has neither a rendered tablature SVG nor a Songsterr "
+              "state blob -- it doesn't look like a Songsterr tab page.")
+        return 2
+
+    print("NOTE: this is the page *source* (View Source), captured before the")
+    print("      app fetched the tab. It contains metadata but NO note data.")
+    print()
+    print(f"title:        {info.title}")
+    print(f"artist:       {info.artist}")
+    print(f"songId:       {info.song_id}")
+    print(f"revisionId:   {info.revision_id}")
+    print(f"author:       {info.author}")
+    print(f"tracks:")
+    for t in info.tracks:
+        tuning = " ".join(t.tuning_names) if t.tuning_midi else "(none)"
+        print(f"  partId {t.part_id}: {t.title}  [tuning: {tuning}]")
+    print()
+    print("To recover notes you need the *rendered DOM*, not the source:")
+    print("  open the tab, wait for it to draw, then in DevTools run")
+    print("  copy(document.documentElement.outerHTML)  (or right-click the")
+    print("  <html> element -> Copy -> Copy outerHTML) and save that.")
+
+    payload = {
+        "kind": "source-only",
+        "hasNoteData": info.has_note_data,
+        "songId": info.song_id,
+        "revisionId": info.revision_id,
+        "title": info.title,
+        "artist": info.artist,
+        "author": info.author,
+        "createdAt": info.created_at,
+        "defaultTrack": info.default_track,
+        "tracks": [
+            {
+                "partId": t.part_id,
+                "title": t.title,
+                "instrument": t.instrument,
+                "instrumentId": t.instrument_id,
+                "isDrums": t.is_drums,
+                "tuningMidi": t.tuning_midi,
+                "tuning": t.tuning_names,
+            }
+            for t in info.tracks
+        ],
+    }
+    with open(os.path.join(out_dir, "meta.json"), "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    print(f"\n-> {out_dir}/meta.json")
+    return 0
+
+
 def cmd_inspect(args) -> int:
     html_src = open(args.input, encoding="utf-8").read()
     os.makedirs(args.out, exist_ok=True)
+
+    if not has_rendered_tab(html_src):
+        return _report_source_only(html_src, args.out)
 
     meta = parse_meta(html_src)
     lines = parse_lines(html_src)
@@ -65,6 +124,11 @@ def cmd_inspect(args) -> int:
 def cmd_notes(args) -> int:
     html_src = open(args.input, encoding="utf-8").read()
     os.makedirs(args.out, exist_ok=True)
+    if not has_rendered_tab(html_src):
+        print("No rendered tablature SVG in this file -- nothing to recover.")
+        print("(Looks like page source rather than the rendered DOM.)")
+        print("Run `inspect` for details on what to export instead.")
+        return 2
     recog = DigitRecognizer.load(args.templates)
     rec = recover(html_src, recog)
 

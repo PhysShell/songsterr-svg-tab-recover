@@ -99,6 +99,27 @@ python -c "import cairosvg; cairosvg.svg2png(url='out/debug-line-000.svg', \
   write_to='out/line0.png', output_width=3000, background_color='#111')"
 ```
 
+## Two kinds of export (important!)
+
+A Songsterr page can be saved two very different ways, and only one contains
+the tab:
+
+| What you saved | Contains | Use |
+|---|---|---|
+| **Rendered DOM** — DevTools `copy(document.documentElement.outerHTML)` *after* the tab draws | the tablature **SVG** (`data-notes-measure`, `tab-strings-path`) | `notes` / `overlay` recover the actual notes |
+| **Page source** — *View Source* / `Ctrl+U` | a `<script id="state">` metadata blob, **no notes** (the app fetches them later) | `inspect` reports metadata + which track/revision IDs to use |
+
+`inspect` auto-detects which one you gave it. On a page-source file it prints
+the song / revision / track metadata (including each track's tuning) and
+explains how to grab the rendered DOM instead:
+
+```
+python -m songsterr_tab inspect fixtures/speed-demon.source.html --out out/
+# NOTE: this is the page *source* ... it contains metadata but NO note data.
+# songId: 659270   revisionId: 2597654
+# partId 0: Andrew Wells - Distortion Guitar  [tuning: E B G D A D]
+```
+
 ## Architecture
 
 ```
