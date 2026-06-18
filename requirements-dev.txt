@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=7.0
+cairosvg>=2.5   # only needed to rasterize debug overlays to PNG

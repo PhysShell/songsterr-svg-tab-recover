@@ -1,0 +1,3 @@
+# Runtime
+svgpathtools>=1.6
+# svgpathtools pulls in numpy/scipy
