@@ -12,6 +12,7 @@ from .glyphs import (
     Glyph,
     group_glyphs,
     looks_like_digit,
+    looks_like_rest,
     nearest_string,
 )
 from .parse import SongMeta, TabLine, measure_boundaries, parse_lines, parse_meta, string_rows
@@ -138,20 +139,23 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     for line in lines:
         rows = string_rows(line.strings_path) if line.strings_path else list(DEFAULT_STRING_ROWS)
         rl = parse_rhythm(line.rhythm_paths)
-        line_bars = measure_boundaries(line.strings_path) if line.strings_path else []
-        # All digit glyphs on this line, tagged with their measure number.
+        # Glyphs from the note voice: fret digits and rest symbols (rests are
+        # drawn here too, taller than digits and centred on the stave).
         pairs = []
         for d, measure in line.note_paths:
             for sub in continuous_subpaths(d):
                 pairs.append((sub, measure))
-        glyphs = [g for g in group_glyphs(pairs) if looks_like_digit(g, rows)]
+        all_glyphs = group_glyphs(pairs)
+        digit_by_measure: Dict[int, List[Glyph]] = {}
+        rest_by_measure: Dict[int, List[float]] = {}
+        for g in all_glyphs:
+            if looks_like_digit(g, rows):
+                digit_by_measure.setdefault(g.measure, []).append(g)
+            elif looks_like_rest(g):
+                rest_by_measure.setdefault(g.measure, []).append(g.bbox.cx)
 
-        # Bucket glyphs by measure, then by string row.
-        by_measure: Dict[int, List[Glyph]] = {}
-        for g in glyphs:
-            by_measure.setdefault(g.measure, []).append(g)
-
-        for mnum, mglyphs in by_measure.items():
+        for mnum in set(digit_by_measure) | set(rest_by_measure):
+            mglyphs = digit_by_measure.get(mnum, [])
             measure = measures.setdefault(mnum, Measure(number=mnum, line=line.index))
             # form multi-digit frets
             notes: List[Note] = []
@@ -171,28 +175,22 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
 
             # group notes into beats by x proximity (chord = same x)
             notes.sort(key=lambda n: n.x)
+            new_beats: List[Beat] = []
             for n in notes:
-                if measure.beats and abs(measure.beats[-1].x - n.x) < 4.0:
-                    measure.beats[-1].notes.append(n)
+                if new_beats and abs(new_beats[-1].x - n.x) < 4.0:
+                    new_beats[-1].notes.append(n)
                 else:
-                    measure.beats.append(Beat(x=n.x, notes=[n]))
-
-            # durations from this line's rhythm voice (measures are single-line)
-            for b in measure.beats:
-                if b.duration is None:
-                    b.duration = _beat_duration(b.x, rl)
-
-            # rests: glyphs with no stem that occupy time. Their total duration
-            # is the measure's shortfall, so distribute the deficit across them.
-            bar = _timesig_whole(meta.time_signature)
-            if bar is not None and rl.rests:
-                x0, x1 = _measure_interval(measure.beats, line_bars)
-                rest_xs = sorted(rx for rx, _ in rl.rests if x0 < rx < x1)
-                note_sum = sum((b.duration for b in measure.beats if b.duration), Fraction(0))
-                deficit = bar - note_sum
-                if rest_xs and deficit > 0:
-                    for rx, dur in zip(rest_xs, _dyadic_split(deficit, len(rest_xs))):
-                        measure.beats.append(Beat(x=rx, duration=dur, is_rest=True))
+                    new_beats.append(Beat(x=n.x, notes=[n]))
+            # note durations from this line's rhythm voice
+            for b in new_beats:
+                b.duration = _beat_duration(b.x, rl)
+            # rests occupy a grid slot; size them to the measure's shortest note
+            # value (independently of the bar so rhythmOk stays an honest check)
+            grid = min((b.duration for b in new_beats if b.duration),
+                       default=Fraction(1, 16))
+            for rx in rest_by_measure.get(mnum, []):
+                new_beats.append(Beat(x=rx, duration=grid, is_rest=True))
+            measure.beats.extend(new_beats)
 
     bar = _timesig_whole(meta.time_signature)
     ordered = [measures[k] for k in sorted(measures)]
@@ -223,41 +221,8 @@ def _timesig_whole(ts: Optional[str]) -> Optional[Fraction]:
         return None
 
 
-def _measure_interval(beats: List[Beat], bars: List[float]) -> Tuple[float, float]:
-    """The [x0, x1] barline interval enclosing a measure's beats."""
-    if not beats:
-        return (float("-inf"), float("inf"))
-    lo = min(b.x for b in beats)
-    hi = max(b.x for b in beats)
-    left = max((b for b in bars if b < lo), default=float("-inf"))
-    right = min((b for b in bars if b > hi), default=float("inf"))
-    return (left, right)
-
-
-def _dyadic_split(total: Fraction, n: int) -> List[Fraction]:
-    """Split a dyadic duration into n pieces, each a clean note value.
-
-    Greedy: hand out the largest power-of-two fraction not exceeding the share,
-    putting any remainder on the last rest so the pieces sum to ``total``.
-    """
-    if n <= 1:
-        return [total]
-    out: List[Fraction] = []
-    remaining = total
-    for i in range(n - 1):
-        share = remaining / (n - i)
-        # largest 1/2^k <= share
-        d = Fraction(1, 1)
-        while d > share:
-            d /= 2
-        out.append(d)
-        remaining -= d
-    out.append(remaining)
-    return out
-
-
 def _beat_duration(x: float, rl) -> Optional[Fraction]:
-    from .rhythm import beams_over, stem_duration
+    from .rhythm import stem_duration
     if not rl.stems:
         return None
     stem = min(rl.stems, key=lambda s: abs(s.x - x))

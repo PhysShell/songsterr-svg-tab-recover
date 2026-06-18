@@ -30,10 +30,11 @@ def test_multi_digit_frets_recovered(recovery):
 
 def test_measure_two_content(recovery):
     m2 = next(m for m in recovery.measures if m.number == 2)
+    note_beats = [b for b in m2.beats if b.notes]
     # open chord of fret 10 on the top three strings, then a single-note run
-    first = m2.beats[0]
+    first = note_beats[0]
     assert [(n.string, n.fret) for n in first.notes] == [(0, 10), (1, 10), (2, 10)]
-    singles = [b.notes[0].fret for b in m2.beats[1:]]
+    singles = [b.notes[0].fret for b in note_beats[1:]]
     assert singles == [12, 14, 13, 15, 12, 13, 14]
 
 

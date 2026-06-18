@@ -146,6 +146,7 @@ def cmd_notes(args) -> int:
                         "x": round(b.x, 2),
                         "duration": str(b.duration) if b.duration is not None else None,
                         "position": str(b.position) if b.position is not None else None,
+                        "rest": b.is_rest,
                         "notes": [
                             {
                                 "string": n.string + 1,  # 1-based for humans

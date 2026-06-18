@@ -113,6 +113,13 @@ def looks_like_digit(g: Glyph, rows: Sequence[float] = DEFAULT_STRING_ROWS) -> b
     return 6.5 <= b.height <= 12.0 and b.width <= 9.0 and nearest_string(b.cy, rows) is not None
 
 
+def looks_like_rest(g: Glyph) -> bool:
+    """Rest glyphs are drawn in the note voice, taller than a digit and
+    vertically centred on the stave (around the middle string)."""
+    b = g.bbox
+    return b.height > 12.5 and 2.0 <= b.width <= 13.0 and 12.0 <= b.cy <= 40.0
+
+
 @dataclass
 class DigitTemplate:
     label: str

@@ -182,16 +182,16 @@ Working and tested:
 - Stave geometry: string rows (derived per line), measure boundaries, numbers.
 - Fret recovery: string + fret + MIDI per note, chords grouped into beats,
   multi-digit frets (the tens digit is no longer dropped). All ten digits 0-9.
-- **Rhythm (first pass)**: durations from the beam/stem voice (beam count ->
-  8th/16th/32nd, augmentation dots, plain quarters), beat onsets, and rests
-  inferred from the measure shortfall. Each measure carries a `rhythmOk` flag
-  (do its durations sum to the time signature). The ASCII tab is spaced
-  proportionally to duration.
+- **Rhythm**: durations from the beam/stem voice (beam count -> 8th/16th/32nd,
+  augmentation dots, plain quarters) plus rest glyphs detected in the note voice
+  and sized to the measure's grid. Beat onsets are computed, and each measure
+  carries a `rhythmOk` flag (do its durations sum to the time signature). The
+  ASCII tab is spaced proportionally to duration.
 - Debug overlay for visual verification.
 
-Rhythm caveats (next steps): half/whole notes, ties/let-ring, and some complex
-beaming aren't fully decoded yet, so on the bundled song ~40% of measures sum
-exactly to the bar; per-note durations are right far more often than that. The
+Rhythm caveats (next steps): half/whole notes, ties/let-ring, dotted gallops and
+non-grid rest durations aren't fully decoded, so on the bundled song ~80% of
+measures sum exactly to the bar (the rest are off by a sixteenth or two). The
 `rhythmOk` flag tells you which measures to trust.
 
 Still out of scope:

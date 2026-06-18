@@ -22,7 +22,7 @@ def test_some_measures_validate(recovery):
     checked = [m for m in recovery.measures if m.rhythm_ok is not None]
     ok = [m for m in checked if m.rhythm_ok]
     # first-pass rhythm: a meaningful fraction of measures sum to the bar
-    assert len(ok) / len(checked) > 0.3
+    assert len(ok) / len(checked) > 0.6
 
 
 def test_positions_are_cumulative(recovery):
