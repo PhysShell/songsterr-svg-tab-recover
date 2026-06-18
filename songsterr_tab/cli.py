@@ -162,12 +162,20 @@ def cmd_notes(args) -> int:
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
 
+    if args.ascii:
+        from .ascii_tab import render_ascii
+        tab_path = os.path.join(args.out, "tab.txt")
+        with open(tab_path, "w", encoding="utf-8") as fh:
+            fh.write(render_ascii(rec))
+
     total_notes = sum(len(b.notes) for m in rec.measures for b in m.beats)
     print(f"measures:       {len(rec.measures)}")
     print(f"beats:          {sum(len(m.beats) for m in rec.measures)}")
     print(f"notes:          {total_notes}")
     print(f"unrecognized:   {rec.unrecognized}")
     print(f"-> {out_path}")
+    if args.ascii:
+        print(f"-> {os.path.join(args.out, 'tab.txt')}")
     return 0
 
 
@@ -203,6 +211,7 @@ def main(argv=None) -> int:
     pn.add_argument("input")
     pn.add_argument("--out", default="out")
     pn.add_argument("--templates", default=DEFAULT_TEMPLATES)
+    pn.add_argument("--ascii", action="store_true", help="also write tab.txt (ASCII tab)")
     pn.set_defaults(func=cmd_notes)
 
     po = sub.add_parser("overlay", help="render debug SVG overlays of recovered frets")

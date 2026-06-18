@@ -1,3 +1,6 @@
 -r requirements.txt
 pytest>=7.0
-cairosvg>=2.5   # only needed to rasterize debug overlays to PNG
+cairosvg>=2.5      # rasterize debug overlays to PNG
+# Optional: only needed for tools/fetch_rendered.py (URL -> rendered DOM).
+# After install run: python -m playwright install chromium
+playwright>=1.40

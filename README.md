@@ -99,6 +99,31 @@ python -c "import cairosvg; cairosvg.svg2png(url='out/debug-line-000.svg', \
   write_to='out/line0.png', output_width=3000, background_color='#111')"
 ```
 
+## From just the URL (headless render)
+
+If you can't easily capture the rendered DOM (e.g. you're on a phone), let a
+headless browser render the public page for you, scrolling so every
+(virtualised) tab line draws, then parse it:
+
+```bash
+pip install playwright && python -m playwright install chromium
+python -m tools.fetch_rendered \
+    "https://www.songsterr.com/a/wsa/dance-gavin-dance-speed-demon-tab-s659270" \
+    out/rendered.html
+python -m songsterr_tab notes out/rendered.html --out out/ --ascii
+```
+
+This just renders the free page like any browser and reads the resulting SVG —
+it does **not** touch Songsterr's protected note-data API. `--ascii` also writes
+a readable `out/tab.txt`:
+
+```
+       m2  m3
+E|-0-------|-0-0-0-0---------------|
+B|-0-3-5-3-|-0-0-0-0-3-5-5-5-5-3-5-|
+G|-0-------|-0-0-0-0---5-5-5-5-----|
+```
+
 ## Two kinds of export (important!)
 
 A Songsterr page can be saved two very different ways, and only one contains
