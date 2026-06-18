@@ -5,8 +5,15 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from .geometry import continuous_subpaths
-from .glyphs import DigitRecognizer, Glyph, group_glyphs, looks_like_digit, nearest_string
-from .parse import SongMeta, TabLine, measure_boundaries, parse_lines, parse_meta
+from .glyphs import (
+    DEFAULT_STRING_ROWS,
+    DigitRecognizer,
+    Glyph,
+    group_glyphs,
+    looks_like_digit,
+    nearest_string,
+)
+from .parse import SongMeta, TabLine, measure_boundaries, parse_lines, parse_meta, string_rows
 
 # MIDI pitch of each open-string note name in octave-less form is ambiguous, so
 # we resolve open-string pitches from the tuning letters using a standard
@@ -100,7 +107,9 @@ def _cluster_digit_glyphs(glyphs: List[Glyph]) -> List[List[Glyph]]:
         placed = False
         for grp in groups:
             last = grp[-1].bbox
-            if abs(last.cy - g.bbox.cy) < 5 and 0 <= g.bbox.xmin - last.xmax <= 2.5:
+            # Digits of one fret number sit ~3px apart; separate beats on a
+            # string are tens of px apart, so a small positive gap is safe.
+            if abs(last.cy - g.bbox.cy) < 5 and -1.0 <= g.bbox.xmin - last.xmax <= 6.0:
                 grp.append(g)
                 placed = True
                 break
@@ -118,12 +127,13 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     unrecognized = 0
 
     for line in lines:
+        rows = string_rows(line.strings_path) if line.strings_path else list(DEFAULT_STRING_ROWS)
         # All digit glyphs on this line, tagged with their measure number.
         pairs = []
         for d, measure in line.note_paths:
             for sub in continuous_subpaths(d):
                 pairs.append((sub, measure))
-        glyphs = [g for g in group_glyphs(pairs) if looks_like_digit(g)]
+        glyphs = [g for g in group_glyphs(pairs) if looks_like_digit(g, rows)]
 
         # Bucket glyphs by measure, then by string row.
         by_measure: Dict[int, List[Glyph]] = {}
@@ -139,7 +149,7 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
                 if fret is None:
                     unrecognized += 1
                     continue
-                s = nearest_string(cy)
+                s = nearest_string(cy, rows)
                 if s is None:
                     unrecognized += 1
                     continue

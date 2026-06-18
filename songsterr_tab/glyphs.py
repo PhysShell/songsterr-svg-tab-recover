@@ -24,8 +24,12 @@ from .geometry import (
 )
 
 GLYPH_SIZE = 16
-# String rows (centre y) for the 6 lines of a standard tab stave.
-STRING_ROWS = (5.0, 17.0, 29.0, 41.0, 53.0, 65.0)
+# Fallback string-row y-positions (the 6 horizontal lines of a tab stave).
+# These are DERIVED per line from the strings path when available -- never
+# rely on the constant alone, since fret glyphs are mapped to a string by
+# nearest row and a hardcoded guess silently drops digits whose centre lands
+# just outside the tolerance.
+DEFAULT_STRING_ROWS = (0.5, 12.5, 24.5, 36.5, 48.5, 60.5)
 
 
 @dataclass
@@ -83,19 +87,30 @@ def group_glyphs(subs_with_measure: Sequence[Tuple[Path, int]]) -> List[Glyph]:
     return glyphs
 
 
-def nearest_string(cy: float) -> Optional[int]:
-    """Map a glyph centre-y to a string index (0 = highest), or None."""
+def nearest_string(
+    cy: float,
+    rows: Sequence[float] = DEFAULT_STRING_ROWS,
+    tol: Optional[float] = None,
+) -> Optional[int]:
+    """Map a glyph centre-y to a string index (0 = highest), or None.
+
+    Tolerance defaults to half the row spacing, so a glyph is assigned to a
+    string as long as it is closer to that line than to its neighbour.
+    """
+    if tol is None:
+        spacing = (rows[-1] - rows[0]) / (len(rows) - 1) if len(rows) > 1 else 12.0
+        tol = spacing / 2.0
     best, bd = None, 1e9
-    for idx, ry in enumerate(STRING_ROWS):
+    for idx, ry in enumerate(rows):
         d = abs(cy - ry)
         if d < bd:
             bd, best = d, idx
-    return best if bd < 5.0 else None
+    return best if bd <= tol else None
 
 
-def looks_like_digit(g: Glyph) -> bool:
+def looks_like_digit(g: Glyph, rows: Sequence[float] = DEFAULT_STRING_ROWS) -> bool:
     b = g.bbox
-    return 6.5 <= b.height <= 12.0 and b.width <= 9.0 and nearest_string(b.cy) is not None
+    return 6.5 <= b.height <= 12.0 and b.width <= 9.0 and nearest_string(b.cy, rows) is not None
 
 
 @dataclass

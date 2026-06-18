@@ -16,20 +16,26 @@ from collections import Counter
 from songsterr_tab.geometry import hamming
 from songsterr_tab.glyphs import GLYPH_SIZE, group_glyphs, looks_like_digit
 from songsterr_tab.geometry import continuous_subpaths
-from songsterr_tab.parse import parse_lines
+from songsterr_tab.parse import parse_lines, string_rows
 
-# Labels for the speed-demon fixture, in descending cluster-frequency order.
-# Verified by rendering each cluster's medoid bitmap (see README "Glyph lab").
-SPEED_DEMON_LABELS = ["7", "0", "5", "3", "9", "8", "6"]
+# Labels for the rendered Speed Demon fixture, in descending cluster-frequency
+# order.  Verified by rendering each cluster's medoid bitmap (see README).
+# This fixture spans frets up to the teens, so all ten digits are present.
+SPEED_DEMON_LABELS = ["1", "7", "0", "5", "2", "3", "8", "9", "4", "6"]
 
 
 def collect_digit_glyphs(html_src: str):
-    pairs = []
+    glyphs = []
     for line in parse_lines(html_src):
+        rows = string_rows(line.strings_path) if line.strings_path else None
+        pairs = []
         for d, measure in line.note_paths:
             for sub in continuous_subpaths(d):
                 pairs.append((sub, measure))
-    return [g for g in group_glyphs(pairs) if looks_like_digit(g)]
+        for g in group_glyphs(pairs):
+            if looks_like_digit(g, rows) if rows else looks_like_digit(g):
+                glyphs.append(g)
+    return glyphs
 
 
 def cluster(glyphs, threshold: int = 22):

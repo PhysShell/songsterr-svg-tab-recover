@@ -7,14 +7,16 @@ from songsterr_tab.glyphs import (
 from songsterr_tab.parse import parse_lines
 
 
-def test_recognizer_has_all_song_digits(recog):
+def test_recognizer_has_all_ten_digits(recog):
     labels = {t.label for t in recog.templates}
-    assert {"0", "3", "5", "6", "7", "8", "9"} <= labels
+    assert {str(d) for d in range(10)} <= labels
 
 
 def test_nearest_string():
-    assert nearest_string(5.0) == 0     # high string row
-    assert nearest_string(65.0) == 5    # low string row
+    # default rows are the true stave lines: 0.5, 12.5, ... 60.5
+    assert nearest_string(0.5) == 0     # high string row
+    assert nearest_string(0.0) == 0     # the tens digit that used to be dropped
+    assert nearest_string(60.5) == 5    # low string row
     assert nearest_string(200.0) is None  # below the stave -> not a fret
 
 

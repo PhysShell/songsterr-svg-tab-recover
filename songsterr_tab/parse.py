@@ -149,6 +149,23 @@ def parse_lines(html_src: str) -> List[TabLine]:
     return lines
 
 
+def string_rows(strings_path: str) -> List[float]:
+    """The 6 horizontal string-line y-positions, derived from the strings path.
+
+    Horizontal segments are written as ``...,{y}H{x}``; the six most common y
+    values (top to bottom) are the stave lines.  Falls back to the standard
+    layout if the path is missing or malformed.
+    """
+    from collections import Counter
+
+    ys = Counter(round(float(y), 1) for y in re.findall(r",([\-0-9.]+)H", strings_path))
+    # the stave lines are the most frequently drawn horizontal y-values
+    common = [y for y, _ in ys.most_common() if y > 0]  # drop y=0 framing artifact
+    if len(common) >= 6:
+        return sorted(common[:6])
+    return [0.5, 12.5, 24.5, 36.5, 48.5, 60.5]
+
+
 def measure_boundaries(strings_path: str) -> List[float]:
     """Vertical barlines (measure boundaries) are the ``v`` segments in the
     strings path: ``M{x},0.5v59.5``.  Return their sorted x positions."""
