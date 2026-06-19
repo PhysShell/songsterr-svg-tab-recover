@@ -194,18 +194,22 @@ Working and tested:
   signature). The ASCII tab is spaced proportionally to duration.
 - Debug overlay for visual verification.
 
-Sustained notes (a half note with no beam, whose value the rhythm voice never
-spelled out) are recovered from x-geometry: a note's horizontal position is
-proportional to its onset within the measure, so when a measure underruns and
-exactly one note's span to the next onset -- given the shortfall -- lands on a
-clean note value, it is extended to match. Such measures are flagged
+Sustained and let-ring notes (a half note with no beam, or a tied note drawn
+in parentheses, whose value the rhythm voice never spells out) are recovered
+from x-geometry: a note's horizontal position is proportional to its onset
+within the measure, so when a measure underruns and exactly one note -- a
+let-ring note, or the one whose span to the next onset lands on a clean value
+given the shortfall -- can absorb it, it is extended. Such measures are flagged
 `rhythmInferred`.
 
-Rhythm status: on the bundled song 98/100 measures sum exactly to the bar (83
-read straight from the geometry, 15 via forced beam-completion or sustained-note
-extension). The last two are one ambiguous gallop and one with overlapping
-rest/note glyphs; the `rhythmOk` flag tells you which measures to trust and
-`rhythmInferred` which were reconstructed rather than read directly.
+32nd notes are drawn by Songsterr at reduced glyph size and flagged per note as
+`thirtySecond`; parentheses around a let-ring note are flagged `letRing`.
+
+Rhythm status: on the bundled song 99/100 measures sum exactly to the bar. The
+one holdout is a 32nd-note gallop whose exact subdivision the rendered beams
+under-specify (the editor has the data, the SVG doesn't fully). The `rhythmOk`
+flag tells you which measures to trust and `rhythmInferred` which were
+reconstructed rather than read directly.
 
 Still out of scope:
 

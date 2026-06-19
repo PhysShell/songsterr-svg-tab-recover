@@ -32,6 +32,20 @@ def test_beam_completion_is_forced_only(recovery):
         assert m.rhythm_ok, m.number
 
 
+def test_thirty_second_notes_detected(recovery):
+    # 32nd-note frets are rendered at reduced size and flagged as such
+    small = [n for m in recovery.measures for b in m.beats for n in b.notes if n.small]
+    assert small
+
+
+def test_let_ring_notes_absorb_the_bar(recovery):
+    # a parenthesised let-ring note is held; its measure should still balance
+    rings = [(m, b) for m in recovery.measures for b in m.beats if b.let_ring]
+    assert rings
+    for m, b in rings:
+        assert m.rhythm_ok, m.number
+
+
 def test_rest_durations_are_typed(recovery):
     # rests carry a real duration (8th / 16th), never left blank
     rests = [b for m in recovery.measures for b in m.beats if b.is_rest]

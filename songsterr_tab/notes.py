@@ -12,6 +12,7 @@ from .glyphs import (
     Glyph,
     group_glyphs,
     looks_like_digit,
+    looks_like_paren,
     looks_like_rest,
     rest_value,
     nearest_string,
@@ -36,6 +37,7 @@ class Note:
     x: float
     midi: Optional[int] = None
     confidence: int = 0   # Hamming distance of the worst-matched digit
+    small: bool = False   # rendered at reduced size => 32nd-note subdivision
 
 
 @dataclass
@@ -45,6 +47,7 @@ class Beat:
     duration: Optional[Fraction] = None   # as a fraction of a whole note
     position: Optional[Fraction] = None   # onset within the measure
     is_rest: bool = False
+    let_ring: bool = False    # drawn parenthesised: a tied / let-ring note
 
 
 @dataclass
@@ -153,12 +156,15 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
         all_glyphs = group_glyphs(pairs)
         digit_by_measure: Dict[int, List[Glyph]] = {}
         rest_by_measure: Dict[int, List[Tuple[float, Optional[Fraction]]]] = {}
+        paren_by_measure: Dict[int, List[float]] = {}
         for g in all_glyphs:
             if looks_like_digit(g, rows):
                 digit_by_measure.setdefault(g.measure, []).append(g)
             elif looks_like_rest(g):
                 rest_by_measure.setdefault(g.measure, []).append(
                     (g.bbox.cx, rest_value(g)))
+            elif looks_like_paren(g):
+                paren_by_measure.setdefault(g.measure, []).append(g.bbox.cx)
 
         for mnum in set(digit_by_measure) | set(rest_by_measure):
             mglyphs = digit_by_measure.get(mnum, [])
@@ -177,7 +183,10 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
                 midi = None
                 if s < len(open_midi) and open_midi[s] is not None:
                     midi = open_midi[s] + fret
-                notes.append(Note(string=s, fret=fret, x=cx, midi=midi, confidence=dist))
+                # Songsterr draws 32nd-note frets at reduced size.
+                small = all(g.bbox.height < 8.5 for g in grp)
+                notes.append(Note(string=s, fret=fret, x=cx, midi=midi,
+                                  confidence=dist, small=small))
 
             # group notes into beats by x proximity (chord = same x)
             notes.sort(key=lambda n: n.x)
@@ -196,6 +205,12 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
                        default=Fraction(1, 16))
             for rx, rdur in rest_by_measure.get(mnum, []):
                 new_beats.append(Beat(x=rx, duration=rdur or grid, is_rest=True))
+            # a note flanked by parenthesis glyphs is a let-ring / tied note
+            for px in paren_by_measure.get(mnum, []):
+                near = min((b for b in new_beats if not b.is_rest),
+                           key=lambda b: abs(b.x - px), default=None)
+                if near is not None and abs(near.x - px) < 14.0:
+                    near.let_ring = True
             measure.beats.extend(new_beats)
 
     bar = _timesig_whole(meta.time_signature)
@@ -247,6 +262,17 @@ def _extend_sustained(m: "Measure", bar: Fraction, bars: List[float]) -> None:
     x1 = min((b for b in bars if b > beats[-1].x + 2), default=None)
     if x0 is None or x1 is None or x1 - x0 < 50:
         return
+    # A let-ring / tied note is held across the bar; its drawn x-span is
+    # compressed and doesn't reflect the real length, so let it absorb the
+    # shortfall directly when there is exactly one.
+    rings = [i for i, b in enumerate(beats)
+             if b.let_ring and b.duration is not None
+             and b.duration + deficit in _CLEAN_DURATIONS]
+    if len(rings) == 1:
+        beats[rings[0]].duration += deficit
+        m.rhythm_inferred = True
+        return
+
     width = x1 - x0
     hits = []
     for i, b in enumerate(beats):

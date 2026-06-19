@@ -116,9 +116,19 @@ def looks_like_digit(g: Glyph, rows: Sequence[float] = DEFAULT_STRING_ROWS) -> b
 
 def looks_like_rest(g: Glyph) -> bool:
     """Rest glyphs are drawn in the note voice, taller than a digit and
-    vertically centred on the stave (around the middle string)."""
+    vertically centred on the stave (around the middle string).
+
+    The lower width bound excludes the thin parenthesis glyphs Songsterr draws
+    around let-ring / tied notes, which are otherwise rest-shaped."""
     b = g.bbox
-    return b.height > 12.5 and 2.0 <= b.width <= 13.0 and 12.0 <= b.cy <= 40.0
+    return b.height > 12.5 and 6.0 <= b.width <= 13.0 and 12.0 <= b.cy <= 40.0
+
+
+def looks_like_paren(g: Glyph) -> bool:
+    """A thin tall glyph on the stave: the parenthesis Songsterr draws around a
+    let-ring / tied note."""
+    b = g.bbox
+    return b.height > 12.5 and b.width < 6.0 and 12.0 <= b.cy <= 40.0
 
 
 def rest_value(g: Glyph) -> Optional[Fraction]:
@@ -126,8 +136,6 @@ def rest_value(g: Glyph) -> Optional[Fraction]:
     like note flags, so a taller glyph is the *shorter* rest: the eighth rest
     has one hook (~15px tall), the sixteenth rest two hooks (~22px)."""
     b = g.bbox
-    if b.width < 6.0:            # thin two-hook sixteenth rest variant
-        return Fraction(1, 16)
     if b.height >= 19.0:         # two hooks -> sixteenth rest
         return Fraction(1, 16)
     if b.height >= 12.5:         # one hook -> eighth rest
