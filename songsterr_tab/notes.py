@@ -31,6 +31,8 @@ _NOTE_TO_SEMITONE = {
 }
 # Default MIDI octaves per string for E-standard (E4 B3 G3 D3 A2 E2).
 _STANDARD_OPEN_MIDI = [64, 59, 55, 50, 45, 40]
+# 4-string bass in standard tuning, highest to lowest (G2 D2 A1 E1).
+_BASS_OPEN_MIDI = [43, 38, 33, 28]
 
 
 @dataclass
@@ -83,13 +85,15 @@ def _open_string_midi(tuning: List[str]) -> List[Optional[int]]:
     class to the tuned note, choosing the nearest octave so e.g. a dropped low
     string stays below its neighbour.
     """
+    # 4 (or fewer) strings -> bass octaves; otherwise guitar octaves
+    refs = _BASS_OPEN_MIDI if len(tuning) <= 4 else _STANDARD_OPEN_MIDI
     midis: List[Optional[int]] = []
     for i, name in enumerate(tuning[:6]):
         pc = _NOTE_TO_SEMITONE.get(name)
         if pc is None:
             midis.append(None)
             continue
-        ref = _STANDARD_OPEN_MIDI[i] if i < len(_STANDARD_OPEN_MIDI) else 40
+        ref = refs[i] if i < len(refs) else refs[-1]
         # nearest midi with this pitch class to the standard reference
         base = ref - (ref % 12)
         candidates = [base + pc - 12, base + pc, base + pc + 12]

@@ -85,3 +85,24 @@ def test_let_ring_ties_do_not_restrike():
         on = [e for e in events if e[0] == 80 * W and e[2] == pitch and e[1] == 0x90 and e[3] > 0]
         off = [e for e in events if e[0] == 82 * W and e[2] == pitch and (e[1] == 0x80 or e[3] == 0)]
         assert on and off
+
+
+def test_multi_track_combines_parts(recovery):
+    """Several recoveries combine into a format-1 file: a conductor track plus
+    one channel per part."""
+    from songsterr_tab.midi import multi_to_bytes
+    data = multi_to_bytes([recovery, recovery])
+    import struct
+    fmt, ntrks, _ = struct.unpack(">HHH", data[8:14])
+    assert fmt == 1 and ntrks == 3          # conductor + 2 parts
+    # each part lands on its own channel
+    chans = set()
+    pos = data.index(b"MTrk")
+    for _ in range(ntrks):
+        ln = struct.unpack(">I", data[pos + 4:pos + 8])[0]
+        body = data[pos + 8:pos + 8 + ln]
+        for k in range(len(body) - 1):
+            if body[k] & 0xF0 in (0x90, 0x80) and body[k] & 0x80:
+                chans.add(body[k] & 0x0F)
+        pos += 8 + ln
+    assert {0, 1} <= chans

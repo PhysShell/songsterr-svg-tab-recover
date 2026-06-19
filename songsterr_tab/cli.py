@@ -211,19 +211,36 @@ def cmd_overlay(args) -> int:
 
 
 def cmd_midi(args) -> int:
-    html_src = open(args.input, encoding="utf-8").read()
     os.makedirs(args.out, exist_ok=True)
-    if not has_rendered_tab(html_src):
-        print("No rendered tablature SVG in this file -- nothing to export.")
-        return 2
-    from .midi import write_midi
+    from .midi import write_midi, write_multi
     recog = DigitRecognizer.load(args.templates)
-    rec = recover(html_src, recog)
-    out_path = os.path.join(args.out, "tab.mid")
-    sounded = write_midi(rec, out_path)
-    print(f"title:          {rec.meta.title}")
-    print(f"tempo:          {rec.meta.tempo} bpm   timeSignature: {rec.meta.time_signature}")
-    print(f"sounded notes:  {sounded}")
+    recs = []
+    for path in args.input:
+        html_src = open(path, encoding="utf-8").read()
+        if not has_rendered_tab(html_src):
+            print(f"No rendered tablature SVG in {path} -- skipping.")
+            continue
+        recs.append(recover(html_src, recog))
+    if not recs:
+        print("Nothing to export.")
+        return 2
+
+    if len(recs) == 1:
+        out_path = os.path.join(args.out, "tab.mid")
+        sounded = write_midi(recs[0], out_path)
+        print(f"title:          {recs[0].meta.title}")
+        print(f"track:          {recs[0].meta.track}")
+        print(f"tempo:          {recs[0].meta.tempo} bpm   timeSignature: {recs[0].meta.time_signature}")
+        print(f"sounded notes:  {sounded}")
+    else:
+        out_path = os.path.join(args.out, "combined.mid")
+        sounded = write_multi(recs, out_path)
+        print(f"title:          {recs[0].meta.title}   tempo: {recs[0].meta.tempo} bpm")
+        for i, r in enumerate(recs):
+            n = sum(1 for m in r.measures for b in m.beats
+                    if not b.is_rest for nn in b.notes if nn.midi is not None)
+            print(f"  channel {i if i < 9 else i + 1}: {r.meta.track}  (~{n} notes)")
+        print(f"total sounded:  {sounded}")
     print(f"-> {out_path}")
     return 0
 
@@ -252,8 +269,9 @@ def main(argv=None) -> int:
     po.add_argument("--line", type=int, default=None, help="only this line index")
     po.set_defaults(func=cmd_overlay)
 
-    pm = sub.add_parser("midi", help="export recovered notes to a MIDI file")
-    pm.add_argument("input")
+    pm = sub.add_parser("midi", help="export recovered notes to a MIDI file "
+                                     "(pass several tracks to combine them)")
+    pm.add_argument("input", nargs="+", help="one or more rendered tab DOMs")
     pm.add_argument("--out", default="out")
     pm.add_argument("--templates", default=DEFAULT_TEMPLATES)
     pm.set_defaults(func=cmd_midi)
