@@ -14,7 +14,9 @@ from .glyphs import (
     looks_like_digit,
     looks_like_paren,
     looks_like_rest,
+    looks_like_bar_rest,
     rest_value,
+    bar_rest_value,
     nearest_string,
 )
 from .parse import SongMeta, TabLine, measure_boundaries, parse_lines, parse_meta, string_rows
@@ -164,6 +166,9 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
             elif looks_like_rest(g):
                 rest_by_measure.setdefault(g.measure, []).append(
                     (g.bbox.cx, rest_value(g)))
+            elif looks_like_bar_rest(g):
+                rest_by_measure.setdefault(g.measure, []).append(
+                    (g.bbox.cx, bar_rest_value(g, rows)))
             elif looks_like_paren(g):
                 paren_by_measure.setdefault(g.measure, []).append(g.bbox.cx)
 

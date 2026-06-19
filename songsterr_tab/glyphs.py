@@ -124,6 +124,21 @@ def looks_like_rest(g: Glyph) -> bool:
     return b.height > 12.5 and 6.0 <= b.width <= 13.0 and 12.0 <= b.cy <= 40.0
 
 
+def looks_like_bar_rest(g: Glyph) -> bool:
+    """A half / whole rest: a short wide block sitting on or under a stave line
+    (much shorter than the hooked eighth/16th rests)."""
+    b = g.bbox
+    return 9.0 < b.width < 16.0 and 3.0 < b.height < 9.0 and 12.0 <= b.cy <= 50.0
+
+
+def bar_rest_value(g: Glyph, rows: Sequence[float]) -> Fraction:
+    """Half rest sits *on top* of its line (block above it); whole rest *hangs*
+    below the line (block beneath it)."""
+    b = g.bbox
+    line = min(rows, key=lambda r: abs(r - b.cy))
+    return Fraction(1, 2) if b.cy <= line else Fraction(1)
+
+
 def looks_like_paren(g: Glyph) -> bool:
     """A thin tall glyph on the stave: the parenthesis Songsterr draws around a
     let-ring / tied note."""
@@ -132,15 +147,16 @@ def looks_like_paren(g: Glyph) -> bool:
 
 
 def rest_value(g: Glyph) -> Optional[Fraction]:
-    """Duration of a rest glyph from its shape. Songsterr stacks flag hooks
-    like note flags, so a taller glyph is the *shorter* rest: the eighth rest
-    has one hook (~15px tall), the sixteenth rest two hooks (~22px)."""
+    """Duration of a rest glyph from its shape. Songsterr stacks flag hooks like
+    note flags, so among the tall glyphs the *wider* (two side-by-side hooks) is
+    the shorter 16th rest, while the narrow tall zig-zag is the quarter rest. A
+    single short hook is the eighth rest."""
     b = g.bbox
-    if b.height >= 19.0:         # two hooks -> sixteenth rest
-        return Fraction(1, 16)
-    if b.height >= 12.5:         # one hook -> eighth rest
+    if b.height < 19.0:          # one short hook -> eighth rest
         return Fraction(1, 8)
-    return None
+    if b.width < 10.0:           # narrow tall zig-zag -> quarter rest
+        return Fraction(1, 4)
+    return Fraction(1, 16)       # wide two-hook -> sixteenth rest
 
 
 @dataclass
