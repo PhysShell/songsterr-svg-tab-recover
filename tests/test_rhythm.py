@@ -21,8 +21,18 @@ def test_durations_are_clean_note_values(recovery):
 def test_some_measures_validate(recovery):
     checked = [m for m in recovery.measures if m.rhythm_ok is not None]
     ok = [m for m in checked if m.rhythm_ok]
-    # first-pass rhythm: a meaningful fraction of measures sum to the bar
-    assert len(ok) / len(checked) > 0.6
+    # rests are typed by glyph shape, so most measures sum exactly to the bar
+    assert len(ok) / len(checked) > 0.7
+
+
+def test_rest_durations_are_typed(recovery):
+    # rests carry a real duration (8th / 16th), never left blank
+    rests = [b for m in recovery.measures for b in m.beats if b.is_rest]
+    assert rests
+    assert all(b.duration is not None for b in rests)
+    assert {b.duration for b in rests} <= {
+        Fraction(1, 16), Fraction(1, 8), Fraction(1, 4)
+    }
 
 
 def test_positions_are_cumulative(recovery):

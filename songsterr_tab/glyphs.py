@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
+from fractions import Fraction
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from svgpathtools import Path
@@ -118,6 +119,20 @@ def looks_like_rest(g: Glyph) -> bool:
     vertically centred on the stave (around the middle string)."""
     b = g.bbox
     return b.height > 12.5 and 2.0 <= b.width <= 13.0 and 12.0 <= b.cy <= 40.0
+
+
+def rest_value(g: Glyph) -> Optional[Fraction]:
+    """Duration of a rest glyph from its shape. Songsterr stacks flag hooks
+    like note flags, so a taller glyph is the *shorter* rest: the eighth rest
+    has one hook (~15px tall), the sixteenth rest two hooks (~22px)."""
+    b = g.bbox
+    if b.width < 6.0:            # thin two-hook sixteenth rest variant
+        return Fraction(1, 16)
+    if b.height >= 19.0:         # two hooks -> sixteenth rest
+        return Fraction(1, 16)
+    if b.height >= 12.5:         # one hook -> eighth rest
+        return Fraction(1, 8)
+    return None
 
 
 @dataclass

@@ -13,6 +13,7 @@ from .glyphs import (
     group_glyphs,
     looks_like_digit,
     looks_like_rest,
+    rest_value,
     nearest_string,
 )
 from .parse import SongMeta, TabLine, measure_boundaries, parse_lines, parse_meta, string_rows
@@ -147,12 +148,13 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
                 pairs.append((sub, measure))
         all_glyphs = group_glyphs(pairs)
         digit_by_measure: Dict[int, List[Glyph]] = {}
-        rest_by_measure: Dict[int, List[float]] = {}
+        rest_by_measure: Dict[int, List[Tuple[float, Optional[Fraction]]]] = {}
         for g in all_glyphs:
             if looks_like_digit(g, rows):
                 digit_by_measure.setdefault(g.measure, []).append(g)
             elif looks_like_rest(g):
-                rest_by_measure.setdefault(g.measure, []).append(g.bbox.cx)
+                rest_by_measure.setdefault(g.measure, []).append(
+                    (g.bbox.cx, rest_value(g)))
 
         for mnum in set(digit_by_measure) | set(rest_by_measure):
             mglyphs = digit_by_measure.get(mnum, [])
@@ -184,12 +186,12 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
             # note durations from this line's rhythm voice
             for b in new_beats:
                 b.duration = _beat_duration(b.x, rl)
-            # rests occupy a grid slot; size them to the measure's shortest note
-            # value (independently of the bar so rhythmOk stays an honest check)
+            # rests carry their own duration from the rest glyph's shape; fall
+            # back to the measure's shortest note value when a glyph is unclear
             grid = min((b.duration for b in new_beats if b.duration),
                        default=Fraction(1, 16))
-            for rx in rest_by_measure.get(mnum, []):
-                new_beats.append(Beat(x=rx, duration=grid, is_rest=True))
+            for rx, rdur in rest_by_measure.get(mnum, []):
+                new_beats.append(Beat(x=rx, duration=rdur or grid, is_rest=True))
             measure.beats.extend(new_beats)
 
     bar = _timesig_whole(meta.time_signature)
