@@ -126,13 +126,23 @@ def to_bytes(rec: TabRecovery) -> bytes:
 def multi_to_bytes(recs: Sequence[TabRecovery]) -> bytes:
     """Format-1 file: a conductor track for tempo/metre, then one channel per
     part (channel 9 is skipped -- it is reserved for GM percussion)."""
+    if not recs:
+        raise ValueError("multi_to_bytes requires at least one recovery")
     if len(recs) == 1:
         return to_bytes(recs[0])
+    channels = [c for c in range(16) if c != 9]
+    if len(recs) > len(channels):
+        # One channel per part is the contract; wrapping would silently alias
+        # parts onto a shared channel, where program changes and note-offs of
+        # one part bleed into another. Fail loudly instead.
+        raise ValueError(
+            f"cannot combine {len(recs)} parts: only {len(channels)} melodic "
+            "MIDI channels are available (channel 10 is reserved for percussion)"
+        )
     tracks = [_track_chunk(_tempo_meta(recs[0]) +
                            _vlq(0) + _meta(0x03, b"Conductor"), [])]
-    channels = [c for c in range(16) if c != 9]
     for i, rec in enumerate(recs):
-        ch = channels[i % len(channels)]
+        ch = channels[i]
         spans, _ = _spans(rec)
         name = (rec.meta.track or f"Track {i + 1}").encode("utf-8", "replace")
         lead = (_vlq(0) + _meta(0x03, name)

@@ -216,7 +216,8 @@ def cmd_midi(args) -> int:
     recog = DigitRecognizer.load(args.templates)
     recs = []
     for path in args.input:
-        html_src = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as fh:
+            html_src = fh.read()
         if not has_rendered_tab(html_src):
             print(f"No rendered tablature SVG in {path} -- skipping.")
             continue

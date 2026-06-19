@@ -78,15 +78,19 @@ class TabRecovery:
     unrecognized: int = 0
 
 
-def _open_string_midi(tuning: List[str]) -> List[Optional[int]]:
+def _open_string_midi(tuning: List[str], track: Optional[str] = None) -> List[Optional[int]]:
     """Best-effort MIDI for each open string given tuning letters.
 
     We keep the per-string octave of standard tuning and only shift the pitch
     class to the tuned note, choosing the nearest octave so e.g. a dropped low
     string stays below its neighbour.
     """
-    # 4 (or fewer) strings -> bass octaves; otherwise guitar octaves
-    refs = _BASS_OPEN_MIDI if len(tuning) <= 4 else _STANDARD_OPEN_MIDI
+    # A bass sits an octave or two below a guitar. Prefer the instrument name,
+    # which also catches 5-/6-string basses (their extra string would otherwise
+    # push them past the "<= 4 strings" guess into guitar octaves); fall back to
+    # the string count when the name is unknown.
+    is_bass = "bass" in (track or "").lower() or len(tuning) <= 4
+    refs = _BASS_OPEN_MIDI if is_bass else _STANDARD_OPEN_MIDI
     midis: List[Optional[int]] = []
     for i, name in enumerate(tuning[:6]):
         pc = _NOTE_TO_SEMITONE.get(name)
@@ -146,7 +150,7 @@ def _cluster_digit_glyphs(glyphs: List[Glyph]) -> List[List[Glyph]]:
 def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     meta = parse_meta(html_src)
     lines = parse_lines(html_src)
-    open_midi = _open_string_midi(meta.tuning)
+    open_midi = _open_string_midi(meta.tuning, meta.track)
 
     measures: Dict[int, Measure] = {}
     unrecognized = 0

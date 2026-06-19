@@ -106,3 +106,15 @@ def test_multi_track_combines_parts(recovery):
                 chans.add(body[k] & 0x0F)
         pos += 8 + ln
     assert {0, 1} <= chans
+
+
+def test_multi_track_rejects_overflow_and_empty(recovery):
+    """One channel per part is the contract: more parts than melodic channels
+    must fail loudly rather than wrap onto a shared channel, and an empty input
+    raises instead of an opaque IndexError."""
+    import pytest
+    from songsterr_tab.midi import multi_to_bytes
+    with pytest.raises(ValueError):
+        multi_to_bytes([recovery] * 16)      # 16 > 15 melodic channels
+    with pytest.raises(ValueError):
+        multi_to_bytes([])
