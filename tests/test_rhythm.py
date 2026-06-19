@@ -38,6 +38,17 @@ def test_thirty_second_notes_detected(recovery):
     assert small
 
 
+def test_thirty_second_gallop_resolves(recovery):
+    # where a 32nd reading balances the bar, it is applied as a 1/32 paired with
+    # a dotted-16th (1/32 + 3/32 = an eighth) and the measure validates
+    applied = [m for m in recovery.measures
+               if any(b.duration == Fraction(1, 32) for b in m.beats)]
+    assert applied
+    for m in applied:
+        assert m.rhythm_ok, m.number
+        assert any(b.duration == Fraction(3, 32) for b in m.beats), m.number
+
+
 def test_let_ring_notes_absorb_the_bar(recovery):
     # a parenthesised let-ring note is held; its measure should still balance
     rings = [(m, b) for m in recovery.measures for b in m.beats if b.let_ring]

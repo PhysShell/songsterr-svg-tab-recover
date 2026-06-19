@@ -46,6 +46,7 @@ class RhythmLine:
     beams: List[Beam] = field(default_factory=list)
     dots: List[float] = field(default_factory=list)       # x of augmentation dots
     rests: List[Tuple[float, float]] = field(default_factory=list)  # (x, height)
+    slashes: List[float] = field(default_factory=list)    # x of 32nd-note slashes
 
 
 def parse_rhythm(rhythm_paths: List[str]) -> RhythmLine:
@@ -60,6 +61,8 @@ def parse_rhythm(rhythm_paths: List[str]) -> RhythmLine:
                 rl.beams.append(Beam(xn, xx, (yn + yx) / 2))
             elif abs(w - 2) < 1 and abs(h - 2) < 1:   # augmentation dot
                 rl.dots.append((xn + xx) / 2)
+            elif 5 < w < 11 and 5 < h < 11:       # diagonal slash: 32nd-note flag
+                rl.slashes.append((xn + xx) / 2)
             else:                                  # rest / flag glyph
                 rl.rests.append(((xn + xx) / 2, round(h, 1)))
     return rl
@@ -82,6 +85,12 @@ def stem_duration(stem: Stem, rl: RhythmLine) -> Fraction:
     if any(stem.x < dx < stem.x + 8 for dx in rl.dots):
         dur = dur * Fraction(3, 2)
     return dur
+
+
+def has_slash(x: float, rl: RhythmLine) -> bool:
+    """Whether a 32nd-note slash (the abbreviated secondary beams) crosses the
+    stem at ``x``."""
+    return any(abs(sx - x) < 6 for sx in rl.slashes)
 
 
 def durations_for_beats(

@@ -202,14 +202,21 @@ let-ring note, or the one whose span to the next onset lands on a clean value
 given the shortfall -- can absorb it, it is extended. Such measures are flagged
 `rhythmInferred`.
 
-32nd notes are drawn by Songsterr at reduced glyph size and flagged per note as
-`thirtySecond`; parentheses around a let-ring note are flagged `letRing`.
+32nd notes are drawn two ways the parser now reads: a reduced-size fret glyph
+(note voice) and a diagonal slash abbreviating the secondary beams across the
+stem (rhythm voice). Either flags the note `thirtySecond`. A 32nd pairs with a
+dotted-16th to fill an eighth (1/32 + 3/32) -- the fine analogue of the
+dotted-8th + 16th gallop -- and that pairing is applied when it makes the bar
+balance exactly. Parentheses around a let-ring note are flagged `letRing`.
 
-Rhythm status: on the bundled song 99/100 measures sum exactly to the bar. The
-one holdout is a 32nd-note gallop whose exact subdivision the rendered beams
-under-specify (the editor has the data, the SVG doesn't fully). The `rhythmOk`
-flag tells you which measures to trust and `rhythmInferred` which were
-reconstructed rather than read directly.
+Rhythm status: on the bundled song **100/100 measures sum exactly to the bar**
+(84 read straight from the geometry, 16 reconstructed via the gallop / 32nd /
+let-ring / sustained-note rules). `rhythmOk` flags which measures balance and
+`rhythmInferred` which used a reconstruction. Caveat: a few repeated 32nd riffs
+balance through the sum-closing fallback rather than an exact subdivision (their
+finer rhythm is under-determined once Songsterr drops the augmentation dots from
+the render), so their `thirtySecond` flag is reliable even where the per-note
+duration is approximate.
 
 Still out of scope:
 

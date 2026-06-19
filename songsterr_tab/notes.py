@@ -48,6 +48,7 @@ class Beat:
     position: Optional[Fraction] = None   # onset within the measure
     is_rest: bool = False
     let_ring: bool = False    # drawn parenthesised: a tied / let-ring note
+    is_32nd: bool = False     # reduced-size note / slashed stem: a 32nd
 
 
 @dataclass
@@ -196,9 +197,11 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
                     new_beats[-1].notes.append(n)
                 else:
                     new_beats.append(Beat(x=n.x, notes=[n]))
-            # note durations from this line's rhythm voice
+            # note durations from this line's rhythm voice; flag 32nds from the
+            # reduced note size or the slash drawn across their stem
             for b in new_beats:
                 b.duration = _beat_duration(b.x, rl)
+                b.is_32nd = any(n.small for n in b.notes) or has_slash(b.x, rl)
             # rests carry their own duration from the rest glyph's shape; fall
             # back to the measure's shortest note value when a glyph is unclear
             grid = min((b.duration for b in new_beats if b.duration),
@@ -220,6 +223,7 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     for m in ordered:
         m.beats.sort(key=lambda b: b.x)
         if bar is not None:
+            _complete_thirty_seconds(m, bar)
             _complete_beams(m, bar)
             _extend_sustained(m, bar, line_bars.get(m.line, []))
         pos = Fraction(0)
@@ -288,6 +292,36 @@ def _extend_sustained(m: "Measure", bar: Fraction, bars: List[float]) -> None:
         m.rhythm_inferred = True
 
 
+def _complete_thirty_seconds(m: "Measure", bar: Fraction) -> None:
+    """Apply the 32nd reading when it makes the bar balance exactly.
+
+    A 32nd note (reduced size / slashed stem) pairs with a dotted-16th to fill
+    an eighth (1/32 + 3/32 = 1/8) -- the fine analogue of the dotted-8th + 16th
+    gallop. The rhythm voice abbreviates this to a slash and under-renders the
+    secondary beams, so the pair reads too long. Set each 32nd to 1/32 and the
+    longer note right after it to a dotted-16th, but only if the whole measure
+    then sums to the bar -- otherwise the finer subdivision is under-determined
+    (no augmentation dots survive in the render) and we leave it to the
+    sum-closing fallbacks, keeping just the `is_32nd` flag."""
+    beats = m.beats
+    if not any(b.is_32nd for b in beats):
+        return
+    trial = [b.duration for b in beats]
+    for i, b in enumerate(beats):
+        if not b.is_32nd:
+            continue
+        trial[i] = Fraction(1, 32)
+        j = i + 1
+        if j < len(beats) and not beats[j].is_rest \
+                and trial[j] is not None and trial[j] > Fraction(3, 32):
+            trial[j] = Fraction(3, 32)
+    if sum((d for d in trial if d), Fraction(0)) != bar:
+        return
+    for b, d in zip(beats, trial):
+        b.duration = d
+    m.rhythm_inferred = True
+
+
 def _complete_beams(m: "Measure", bar: Fraction) -> None:
     """Resolve the 8th/16th ambiguity of beamed notes from their context.
 
@@ -330,6 +364,11 @@ def _timesig_whole(ts: Optional[str]) -> Optional[Fraction]:
         return Fraction(int(num), int(den))
     except (ValueError, ZeroDivisionError):
         return None
+
+
+def has_slash(x: float, rl) -> bool:
+    from .rhythm import has_slash as _hs
+    return _hs(x, rl)
 
 
 def _beat_duration(x: float, rl) -> Optional[Fraction]:
