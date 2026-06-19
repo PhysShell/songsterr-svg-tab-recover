@@ -59,7 +59,14 @@ python -m songsterr_tab overlay fixtures/speed-demon.sample.html --out out/ --li
 
 # 4. MIDI: export the recovered notes (pitch + rhythm)  -> out/tab.mid
 python -m songsterr_tab midi    fixtures/speed-demon.rendered.html --out out/
+
+# 4b. Combine several captured tracks into one file  -> out/combined.mid
+python -m songsterr_tab midi guitar1.html guitar2.html bass.html --out out/
 ```
+
+Passing several rendered DOMs to `midi` writes a format-1 file with a conductor
+track (tempo/metre) and one channel per part; a 4-string tuning is voiced in
+bass octaves, others as guitar. A single file stays a format-0 track.
 
 The MIDI export turns the recovered model — pitches from string+fret over the
 tuning, onsets and durations from the rhythm pass — into a standard format-0

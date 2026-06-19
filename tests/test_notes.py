@@ -47,3 +47,13 @@ def test_drop_d_low_string_midi(recovery):
                     assert n.midi == 38
                     return
     raise AssertionError("expected at least one open low-D note")
+
+
+def test_five_string_bass_stays_in_bass_octave():
+    # A 5-string bass has five tuning letters, so a string-count guess alone
+    # would mistake it for a guitar and resolve an octave or two too high. The
+    # instrument name keeps every string -- including the low B -- in the bass
+    # register (B-E-A-D-G, here highest string first).
+    from songsterr_tab.notes import _open_string_midi
+    midi = _open_string_midi(["G", "D", "A", "E", "B"], "Electric Bass (finger)")
+    assert midi == [43, 38, 33, 28, 23]      # G2 D2 A1 E1 B0

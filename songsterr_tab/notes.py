@@ -31,6 +31,8 @@ _NOTE_TO_SEMITONE = {
 }
 # Default MIDI octaves per string for E-standard (E4 B3 G3 D3 A2 E2).
 _STANDARD_OPEN_MIDI = [64, 59, 55, 50, 45, 40]
+# 4-string bass in standard tuning, highest to lowest (G2 D2 A1 E1).
+_BASS_OPEN_MIDI = [43, 38, 33, 28]
 
 
 @dataclass
@@ -76,20 +78,26 @@ class TabRecovery:
     unrecognized: int = 0
 
 
-def _open_string_midi(tuning: List[str]) -> List[Optional[int]]:
+def _open_string_midi(tuning: List[str], track: Optional[str] = None) -> List[Optional[int]]:
     """Best-effort MIDI for each open string given tuning letters.
 
     We keep the per-string octave of standard tuning and only shift the pitch
     class to the tuned note, choosing the nearest octave so e.g. a dropped low
     string stays below its neighbour.
     """
+    # A bass sits an octave or two below a guitar. Prefer the instrument name,
+    # which also catches 5-/6-string basses (their extra string would otherwise
+    # push them past the "<= 4 strings" guess into guitar octaves); fall back to
+    # the string count when the name is unknown.
+    is_bass = "bass" in (track or "").lower() or len(tuning) <= 4
+    refs = _BASS_OPEN_MIDI if is_bass else _STANDARD_OPEN_MIDI
     midis: List[Optional[int]] = []
     for i, name in enumerate(tuning[:6]):
         pc = _NOTE_TO_SEMITONE.get(name)
         if pc is None:
             midis.append(None)
             continue
-        ref = _STANDARD_OPEN_MIDI[i] if i < len(_STANDARD_OPEN_MIDI) else 40
+        ref = refs[i] if i < len(refs) else refs[-1]
         # nearest midi with this pitch class to the standard reference
         base = ref - (ref % 12)
         candidates = [base + pc - 12, base + pc, base + pc + 12]
@@ -142,7 +150,7 @@ def _cluster_digit_glyphs(glyphs: List[Glyph]) -> List[List[Glyph]]:
 def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     meta = parse_meta(html_src)
     lines = parse_lines(html_src)
-    open_midi = _open_string_midi(meta.tuning)
+    open_midi = _open_string_midi(meta.tuning, meta.track)
 
     measures: Dict[int, Measure] = {}
     unrecognized = 0
