@@ -27,7 +27,7 @@ def test_some_measures_validate(recovery):
 
 def test_beam_completion_is_forced_only(recovery):
     # every beam-completed measure now sums exactly to the bar
-    completed = [m for m in recovery.measures if m.beam_completed]
+    completed = [m for m in recovery.measures if m.rhythm_inferred]
     for m in completed:
         assert m.rhythm_ok, m.number
 

@@ -194,10 +194,18 @@ Working and tested:
   signature). The ASCII tab is spaced proportionally to duration.
 - Debug overlay for visual verification.
 
-Rhythm status: on the bundled song 96/100 measures sum exactly to the bar (83
-read straight from the geometry, 13 via forced beam-completion). The last few
-are sustained half/whole notes read short and one ambiguous gallop; the
-`rhythmOk` flag tells you which measures to trust.
+Sustained notes (a half note with no beam, whose value the rhythm voice never
+spelled out) are recovered from x-geometry: a note's horizontal position is
+proportional to its onset within the measure, so when a measure underruns and
+exactly one note's span to the next onset -- given the shortfall -- lands on a
+clean note value, it is extended to match. Such measures are flagged
+`rhythmInferred`.
+
+Rhythm status: on the bundled song 98/100 measures sum exactly to the bar (83
+read straight from the geometry, 15 via forced beam-completion or sustained-note
+extension). The last two are one ambiguous gallop and one with overlapping
+rest/note glyphs; the `rhythmOk` flag tells you which measures to trust and
+`rhythmInferred` which were reconstructed rather than read directly.
 
 Still out of scope:
 

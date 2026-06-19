@@ -55,8 +55,10 @@ class Measure:
     # does the sum of beat durations equal the time signature?
     rhythm_ok: Optional[bool] = None
     duration_sum: Optional[Fraction] = None
-    # a beamed 8th was completed to a 16th from its 16th-subdivision context
-    beam_completed: bool = False
+    # a duration was inferred to satisfy the bar (forced beam-completion or a
+    # sustained note extended to its proportional length) rather than read
+    # straight from the rhythm voice
+    rhythm_inferred: bool = False
 
 
 @dataclass
@@ -197,11 +199,14 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
             measure.beats.extend(new_beats)
 
     bar = _timesig_whole(meta.time_signature)
+    line_bars = {ln.index: (measure_boundaries(ln.strings_path) if ln.strings_path else [])
+                 for ln in lines}
     ordered = [measures[k] for k in sorted(measures)]
     for m in ordered:
         m.beats.sort(key=lambda b: b.x)
         if bar is not None:
             _complete_beams(m, bar)
+            _extend_sustained(m, bar, line_bars.get(m.line, []))
         pos = Fraction(0)
         total = Fraction(0)
         for b in m.beats:
@@ -214,6 +219,47 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
         if bar is not None and any(b.duration for b in m.beats):
             m.rhythm_ok = (total == bar)
     return TabRecovery(meta=meta, measures=ordered, unrecognized=unrecognized)
+
+
+_CLEAN_DURATIONS = (
+    Fraction(1, 16), Fraction(1, 8), Fraction(3, 16), Fraction(1, 4),
+    Fraction(3, 8), Fraction(1, 2), Fraction(3, 4), Fraction(1),
+)
+
+
+def _extend_sustained(m: "Measure", bar: Fraction, bars: List[float]) -> None:
+    """Recover a sustained note read short (e.g. a half note that has no beam,
+    whose value the rhythm voice never spelled out).
+
+    A note's x-position is proportional to its onset within the measure, so the
+    span to the next onset estimates its real duration. When a measure underruns
+    and exactly one beat's span -- given the whole shortfall -- lands on a clean
+    note value, extend it. The geometry independently confirms the held length,
+    which keeps this honest rather than a blind fit."""
+    beats = m.beats
+    if not beats or not bars:
+        return
+    total = sum((b.duration for b in beats if b.duration), Fraction(0))
+    deficit = bar - total
+    if deficit < Fraction(1, 8):            # ignore sub-eighth noise
+        return
+    x0 = max((b for b in bars if b < beats[0].x - 2), default=None)
+    x1 = min((b for b in bars if b > beats[-1].x + 2), default=None)
+    if x0 is None or x1 is None or x1 - x0 < 50:
+        return
+    width = x1 - x0
+    hits = []
+    for i, b in enumerate(beats):
+        if b.duration is None:
+            continue
+        next_x = beats[i + 1].x if i + 1 < len(beats) else x1
+        span = (next_x - b.x) / width            # proportional duration
+        extended = b.duration + deficit
+        if extended in _CLEAN_DURATIONS and abs(float(extended) - span) < 0.06:
+            hits.append(i)
+    if len(hits) == 1:
+        beats[hits[0]].duration += deficit
+        m.rhythm_inferred = True
 
 
 def _complete_beams(m: "Measure", bar: Fraction) -> None:
@@ -246,7 +292,7 @@ def _complete_beams(m: "Measure", bar: Fraction) -> None:
         return
     for i in cands:
         beats[i].duration = Fraction(1, 16)
-    m.beam_completed = True
+    m.rhythm_inferred = True
 
 
 def _timesig_whole(ts: Optional[str]) -> Optional[Fraction]:
