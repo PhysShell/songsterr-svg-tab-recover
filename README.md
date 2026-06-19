@@ -56,7 +56,16 @@ python -m songsterr_tab notes   fixtures/speed-demon.sample.html --out out/
 
 # 3. Overlay: debug SVG with recovered frets drawn on the stave
 python -m songsterr_tab overlay fixtures/speed-demon.sample.html --out out/ --line 0
+
+# 4. MIDI: export the recovered notes (pitch + rhythm)  -> out/tab.mid
+python -m songsterr_tab midi    fixtures/speed-demon.rendered.html --out out/
 ```
+
+The MIDI export turns the recovered model — pitches from string+fret over the
+tuning, onsets and durations from the rhythm pass — into a standard format-0
+file (480 PPQ, tempo + time signature, GM distortion guitar), with no
+third-party dependency. Open it in any DAW or MuseScore to hear/verify the
+recovery.
 
 `inspect` on the bundled fixture prints:
 

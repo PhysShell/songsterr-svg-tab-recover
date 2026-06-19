@@ -209,6 +209,24 @@ def cmd_overlay(args) -> int:
     return 0
 
 
+def cmd_midi(args) -> int:
+    html_src = open(args.input, encoding="utf-8").read()
+    os.makedirs(args.out, exist_ok=True)
+    if not has_rendered_tab(html_src):
+        print("No rendered tablature SVG in this file -- nothing to export.")
+        return 2
+    from .midi import write_midi
+    recog = DigitRecognizer.load(args.templates)
+    rec = recover(html_src, recog)
+    out_path = os.path.join(args.out, "tab.mid")
+    sounded = write_midi(rec, out_path)
+    print(f"title:          {rec.meta.title}")
+    print(f"tempo:          {rec.meta.tempo} bpm   timeSignature: {rec.meta.time_signature}")
+    print(f"sounded notes:  {sounded}")
+    print(f"-> {out_path}")
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="songsterr_tab",
                                 description="Recover tablature from Songsterr-rendered SVG.")
@@ -232,6 +250,12 @@ def main(argv=None) -> int:
     po.add_argument("--templates", default=DEFAULT_TEMPLATES)
     po.add_argument("--line", type=int, default=None, help="only this line index")
     po.set_defaults(func=cmd_overlay)
+
+    pm = sub.add_parser("midi", help="export recovered notes to a MIDI file")
+    pm.add_argument("input")
+    pm.add_argument("--out", default="out")
+    pm.add_argument("--templates", default=DEFAULT_TEMPLATES)
+    pm.set_defaults(func=cmd_midi)
 
     args = p.parse_args(argv)
     return args.func(args)
