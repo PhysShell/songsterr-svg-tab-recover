@@ -39,8 +39,9 @@ def parse_meta(html_src: str) -> SongMeta:
     if tempo:
         meta.tempo = int(tempo)
 
-    sig1 = _text(html_src, r'id="0-0-0-sig1"[^>]*>([^<]+)<')
-    sig2 = _text(html_src, r'id="0-0-0-sig2"[^>]*>([^<]+)<')
+    # sig element ids are prefixed by the track index (0-0-0-sig1, 1-0-0-sig1, ...)
+    sig1 = _text(html_src, r'id="\d+-0-0-sig1"[^>]*>([^<]+)<')
+    sig2 = _text(html_src, r'id="\d+-0-0-sig2"[^>]*>([^<]+)<')
     if sig1 and sig2:
         meta.time_signature = f"{sig1}/{sig2}"
 
