@@ -185,16 +185,19 @@ Working and tested:
 - **Rhythm**: durations from the beam/stem voice (beam count -> 8th/16th/32nd,
   augmentation dots, plain quarters) plus rest glyphs detected in the note
   voice and typed by shape (taller two-hook glyph = 16th rest, shorter one-hook
-  = 8th rest). Beat onsets are computed, and each measure carries a `rhythmOk`
-  flag (do its durations sum to the time signature). The ASCII tab is spaced
-  proportionally to duration.
+  = 8th rest). Songsterr sometimes omits a note's secondary (16th) beam stub, so
+  a 16th reads as an 8th; when a measure overruns by whole 16ths and *every*
+  beamed 8th sitting next to a 16th/dotted-8th must be demoted to absorb the
+  surplus exactly, the correction is forced (no choice of which note) and
+  applied -- such measures are marked `beamCompleted`. Beat onsets are computed,
+  and each measure carries a `rhythmOk` flag (do its durations sum to the time
+  signature). The ASCII tab is spaced proportionally to duration.
 - Debug overlay for visual verification.
 
-Rhythm caveats (next steps): half/whole notes, ties/let-ring and dotted
-"gallop" groups aren't fully decoded, so on the bundled song ~83% of measures
-sum exactly to the bar (the rest are off by a sixteenth or two, usually a
-secondary-beam stub that isn't rendered as its own segment). The `rhythmOk`
-flag tells you which measures to trust.
+Rhythm status: on the bundled song 96/100 measures sum exactly to the bar (83
+read straight from the geometry, 13 via forced beam-completion). The last few
+are sustained half/whole notes read short and one ambiguous gallop; the
+`rhythmOk` flag tells you which measures to trust.
 
 Still out of scope:
 

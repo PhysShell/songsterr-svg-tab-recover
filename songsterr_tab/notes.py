@@ -55,6 +55,8 @@ class Measure:
     # does the sum of beat durations equal the time signature?
     rhythm_ok: Optional[bool] = None
     duration_sum: Optional[Fraction] = None
+    # a beamed 8th was completed to a 16th from its 16th-subdivision context
+    beam_completed: bool = False
 
 
 @dataclass
@@ -198,6 +200,8 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     ordered = [measures[k] for k in sorted(measures)]
     for m in ordered:
         m.beats.sort(key=lambda b: b.x)
+        if bar is not None:
+            _complete_beams(m, bar)
         pos = Fraction(0)
         total = Fraction(0)
         for b in m.beats:
@@ -210,6 +214,39 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
         if bar is not None and any(b.duration for b in m.beats):
             m.rhythm_ok = (total == bar)
     return TabRecovery(meta=meta, measures=ordered, unrecognized=unrecognized)
+
+
+def _complete_beams(m: "Measure", bar: Fraction) -> None:
+    """Resolve the 8th/16th ambiguity of beamed notes from their context.
+
+    A note's second (16th) beam is sometimes a stub Songsterr doesn't draw as
+    its own segment, so the note reads as an 8th. Such a note is flanked by
+    16ths or by a dotted-8th (a dotted-8th in a beam group is always completed
+    by a 16th: 3/16 + 1/16 = one beat). When a measure overruns by whole 16ths
+    and *every* candidate must be demoted to absorb the surplus exactly, the
+    correction is forced -- there is no choice of which note to change -- so we
+    apply it. Ambiguous cases (more candidates than the surplus needs) are left
+    alone and the measure stays flagged."""
+    beats = m.beats
+    durs = [b.duration for b in beats]
+    surplus = sum((d for d in durs if d), Fraction(0)) - bar
+    if surplus <= 0 or surplus % Fraction(1, 16) != 0:
+        return
+    need = int(surplus / Fraction(1, 16))
+    cands = []
+    for i, b in enumerate(beats):
+        if b.is_rest or durs[i] != Fraction(1, 8):
+            continue
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(beats) and durs[j] in (Fraction(1, 16), Fraction(3, 16)) \
+                    and abs(beats[i].x - beats[j].x) < 70:
+                cands.append(i)
+                break
+    if need == 0 or need != len(cands):
+        return
+    for i in cands:
+        beats[i].duration = Fraction(1, 16)
+    m.beam_completed = True
 
 
 def _timesig_whole(ts: Optional[str]) -> Optional[Fraction]:

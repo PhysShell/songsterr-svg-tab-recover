@@ -140,6 +140,7 @@ def cmd_notes(args) -> int:
                 "number": m.number,
                 "line": m.line,
                 "rhythmOk": m.rhythm_ok,
+                "beamCompleted": m.beam_completed,
                 "durationSum": str(m.duration_sum) if m.duration_sum is not None else None,
                 "beats": [
                     {

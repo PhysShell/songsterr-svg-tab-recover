@@ -21,8 +21,15 @@ def test_durations_are_clean_note_values(recovery):
 def test_some_measures_validate(recovery):
     checked = [m for m in recovery.measures if m.rhythm_ok is not None]
     ok = [m for m in checked if m.rhythm_ok]
-    # rests are typed by glyph shape, so most measures sum exactly to the bar
-    assert len(ok) / len(checked) > 0.7
+    # rest typing + forced beam-completion leave only a few odd measures
+    assert len(ok) / len(checked) > 0.85
+
+
+def test_beam_completion_is_forced_only(recovery):
+    # every beam-completed measure now sums exactly to the bar
+    completed = [m for m in recovery.measures if m.beam_completed]
+    for m in completed:
+        assert m.rhythm_ok, m.number
 
 
 def test_rest_durations_are_typed(recovery):
