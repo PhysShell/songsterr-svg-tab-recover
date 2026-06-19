@@ -253,6 +253,7 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     for m in ordered:
         m.beats.sort(key=lambda b: b.x)
         if bar is not None:
+            _resolve_stemless(m, bar)
             _complete_thirty_seconds(m, bar)
             _complete_beams(m, bar)
             _extend_sustained(m, bar, line_bars.get(m.line, []))
@@ -320,6 +321,24 @@ def _extend_sustained(m: "Measure", bar: Fraction, bars: List[float]) -> None:
     if len(hits) == 1:
         beats[hits[0]].duration += deficit
         m.rhythm_inferred = True
+
+
+def _resolve_stemless(m: "Measure", bar: Fraction) -> None:
+    """A note with no rhythm stem nearby is a whole/half note (open noteheads
+    carry no stem). Give such beats the measure's remaining duration when that
+    lands on a clean value -- a lone held note becomes a whole note, a held note
+    beside a rest a half note, etc."""
+    nones = [b for b in m.beats if b.duration is None and b.notes]
+    if not nones:
+        return
+    known = sum((b.duration for b in m.beats if b.duration is not None), Fraction(0))
+    remaining = bar - known
+    if remaining <= 0:
+        return
+    share = remaining / len(nones)
+    if share in _CLEAN_DURATIONS:
+        for b in nones:
+            b.duration = share
 
 
 def _complete_thirty_seconds(m: "Measure", bar: Fraction) -> None:
