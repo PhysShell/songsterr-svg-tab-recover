@@ -63,7 +63,8 @@ def test_rest_durations_are_typed(recovery):
     assert rests
     assert all(b.duration is not None for b in rests)
     assert {b.duration for b in rests} <= {
-        Fraction(1, 16), Fraction(1, 8), Fraction(1, 4)
+        Fraction(1, 16), Fraction(1, 8), Fraction(1, 4),
+        Fraction(1, 2), Fraction(1, 1),
     }
 
 

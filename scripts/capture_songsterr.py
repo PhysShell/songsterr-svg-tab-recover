@@ -40,22 +40,27 @@ def main():
             if pg.query_selector('.gYbqeG_name') else '?'
         print(f"track: {name}", file=sys.stderr)
 
-        # scroll to the bottom in steps until the line count stops growing
+        # Songsterr renders tab lines lazily as they near the viewport. Walk down
+        # the page in small steps -- never jumping to the end (which skips the
+        # middle, leaving those lines as bare measure-number placeholders) --
+        # pausing so each line draws its stave before moving on.
         count = lambda: pg.eval_on_selector_all('[data-testid="tab-strings-path"]', 'e=>e.length')
-        prev, stable = -1, 0
-        for _ in range(400):
+        state = lambda: pg.evaluate("()=>[Math.round(scrollY), document.body.scrollHeight, innerHeight]")
+        stable = 0
+        for _ in range(1000):
+            y, _h, ih = state()
             n = count()
-            if n == prev:
+            pg.mouse.wheel(0, int(ih * 0.5))
+            pg.wait_for_timeout(250)
+            y2, _h2, _ = state()
+            if y2 <= y + 2 and count() == n:        # at the bottom, nothing new
                 stable += 1
-                if stable >= 4:
+                if stable >= 3:
                     break
             else:
                 stable = 0
-            prev = n
-            pg.keyboard.press("End")
-            pg.mouse.wheel(0, 1500)
-            pg.wait_for_timeout(350)
-        print(f"rendered tab lines: {count()}", file=sys.stderr)
+        total = pg.eval_on_selector_all('[data-player-key="tab"]', 'e=>e.length')
+        print(f"rendered staves: {count()} / {total} tab lines", file=sys.stderr)
 
         html = pg.content()
         with open(args.out, "w", encoding="utf-8") as fh:

@@ -152,10 +152,11 @@ def cmd_notes(args) -> int:
                         "notes": [
                             {
                                 "string": n.string + 1,  # 1-based for humans
-                                "fret": n.fret,
+                                "fret": "x" if n.muted else n.fret,
                                 "midi": n.midi,
                                 "confidence": n.confidence,
                                 "thirtySecond": n.small,
+                                "muted": n.muted,
                             }
                             for n in b.notes
                         ],

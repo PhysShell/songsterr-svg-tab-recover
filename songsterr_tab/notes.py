@@ -12,6 +12,7 @@ from .glyphs import (
     Glyph,
     group_glyphs,
     looks_like_digit,
+    looks_like_muted,
     looks_like_paren,
     looks_like_rest,
     looks_like_bar_rest,
@@ -35,11 +36,12 @@ _STANDARD_OPEN_MIDI = [64, 59, 55, 50, 45, 40]
 @dataclass
 class Note:
     string: int          # 0 = highest string
-    fret: int
+    fret: Optional[int]   # None for a dead/muted ('x') note
     x: float
     midi: Optional[int] = None
     confidence: int = 0   # Hamming distance of the worst-matched digit
     small: bool = False   # rendered at reduced size => 32nd-note subdivision
+    muted: bool = False   # dead note drawn as 'x' (no pitch)
 
 
 @dataclass
@@ -158,11 +160,14 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
                 pairs.append((sub, measure))
         all_glyphs = group_glyphs(pairs)
         digit_by_measure: Dict[int, List[Glyph]] = {}
+        muted_by_measure: Dict[int, List[Glyph]] = {}
         rest_by_measure: Dict[int, List[Tuple[float, Optional[Fraction]]]] = {}
         paren_by_measure: Dict[int, List[float]] = {}
         for g in all_glyphs:
             if looks_like_digit(g, rows):
                 digit_by_measure.setdefault(g.measure, []).append(g)
+            elif looks_like_muted(g, rows):
+                muted_by_measure.setdefault(g.measure, []).append(g)
             elif looks_like_rest(g):
                 rest_by_measure.setdefault(g.measure, []).append(
                     (g.bbox.cx, rest_value(g)))
@@ -172,11 +177,17 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
             elif looks_like_paren(g):
                 paren_by_measure.setdefault(g.measure, []).append(g.bbox.cx)
 
-        for mnum in set(digit_by_measure) | set(rest_by_measure):
+        for mnum in set(digit_by_measure) | set(rest_by_measure) | set(muted_by_measure):
             mglyphs = digit_by_measure.get(mnum, [])
             measure = measures.setdefault(mnum, Measure(number=mnum, line=line.index))
             # form multi-digit frets
             notes: List[Note] = []
+            # dead / muted 'x' notes: a string position, no pitch
+            for g in muted_by_measure.get(mnum, []):
+                s = nearest_string(g.bbox.cy, rows)
+                if s is not None:
+                    notes.append(Note(string=s, fret=None, x=g.bbox.cx,
+                                      muted=True))
             for grp in _cluster_digit_glyphs(mglyphs):
                 fret, dist, cx, cy = _fret_from_digits(grp, recog)
                 if fret is None:
@@ -224,6 +235,20 @@ def recover(html_src: str, recog: DigitRecognizer) -> TabRecovery:
     bar = _timesig_whole(meta.time_signature)
     line_bars = {ln.index: (measure_boundaries(ln.strings_path) if ln.strings_path else [])
                  for ln in lines}
+
+    # A measure printed on a *fully rendered* stave but holding no glyphs is a
+    # silent bar (a whole rest), so emit it rather than leave a hole. Lines with
+    # no strings path never drew their content (e.g. a partial capture), so we
+    # don't presume their measures are silent.
+    if bar is not None:
+        for line in lines:
+            if not line.strings_path:
+                continue
+            for _x, num in line.measure_numbers:
+                if num not in measures:
+                    measures[num] = Measure(number=num, line=line.index,
+                                            beats=[Beat(x=0.0, duration=bar, is_rest=True)])
+
     ordered = [measures[k] for k in sorted(measures)]
     for m in ordered:
         m.beats.sort(key=lambda b: b.x)

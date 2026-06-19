@@ -3,7 +3,7 @@ from collections import Counter
 
 def test_full_recovery_counts(recovery):
     total = sum(len(b.notes) for m in recovery.measures for b in m.beats)
-    assert len(recovery.measures) == 75
+    assert len(recovery.measures) == 76      # 75 with content + 1 silent bar
     assert total == 1123
     assert recovery.unrecognized == 0
 

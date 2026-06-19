@@ -49,7 +49,8 @@ def render_ascii(rec: TabRecovery, measures_per_row: int = 4) -> str:
         rows = [f"{labels[s]}|" for s in range(n_strings)]
         for m in chunk:
             for beat in sorted(m.beats, key=lambda b: (b.position or 0, b.x)):
-                frets = {note.string: note.fret for note in beat.notes}
+                frets = {note.string: ("x" if note.muted else note.fret)
+                         for note in beat.notes}
                 label_w = max((len(str(f)) for f in frets.values()), default=1)
                 # cell is at least as wide as the fret label, and as wide as the
                 # beat's duration so rhythm shows in the spacing

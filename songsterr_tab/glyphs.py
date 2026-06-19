@@ -114,6 +114,14 @@ def looks_like_digit(g: Glyph, rows: Sequence[float] = DEFAULT_STRING_ROWS) -> b
     return 6.5 <= b.height <= 12.0 and b.width <= 9.0 and nearest_string(b.cy, rows) is not None
 
 
+def looks_like_muted(g: Glyph, rows: Sequence[float] = DEFAULT_STRING_ROWS) -> bool:
+    """A dead / muted note: an 'x' on a string line. Digit-tall but a touch
+    wider than any fret digit, and a single crossing stroke."""
+    b = g.bbox
+    return (8.5 <= b.width <= 11.0 and 8.0 <= b.height <= 12.0
+            and len(g.subs) <= 2 and nearest_string(b.cy, rows) is not None)
+
+
 def looks_like_rest(g: Glyph) -> bool:
     """Rest glyphs are drawn in the note voice, taller than a digit and
     vertically centred on the stave (around the middle string).
