@@ -36,7 +36,8 @@ def _meta(kind: int, data: bytes) -> bytes:
 def _events(rec: TabRecovery) -> Tuple[List[Tuple[int, bytes]], Fraction]:
     """Absolute-time (tick, message) note events, plus the bar length in wholes."""
     bar = _timesig_whole(rec.meta.time_signature) or Fraction(1)
-    events: List[Tuple[int, bytes]] = []
+    # collect [on, off, pitch, let_ring] then merge ties before emitting
+    spans: List[List] = []
     for m in rec.measures:
         # measure numbers are 1-based and absolute, so gaps stay as silence
         start = (m.number - 1) * bar
@@ -48,8 +49,25 @@ def _events(rec: TabRecovery) -> Tuple[List[Tuple[int, bytes]], Fraction]:
             for n in b.notes:
                 if n.midi is None or not (0 <= n.midi <= 127):
                     continue
-                events.append((on, bytes([0x90, n.midi, VELOCITY])))
-                events.append((off, bytes([0x80, n.midi, 0])))
+                spans.append([on, off, n.midi, b.let_ring])
+
+    # A let-ring / tied note continues the same pitch instead of re-striking:
+    # extend the note it picks up from rather than emit a fresh attack.
+    spans.sort(key=lambda s: (s[0], s[2]))
+    merged: List[List[int]] = []
+    open_at = {}                                  # pitch -> index of its live span
+    for on, off, pitch, let_ring in spans:
+        idx = open_at.get(pitch)
+        if let_ring and idx is not None and abs(merged[idx][1] - on) <= 2:
+            merged[idx][1] = off                  # ring on: push the note-off out
+        else:
+            open_at[pitch] = len(merged)
+            merged.append([on, off, pitch])
+
+    events: List[Tuple[int, bytes]] = []
+    for on, off, pitch in merged:
+        events.append((on, bytes([0x90, pitch, VELOCITY])))
+        events.append((off, bytes([0x80, pitch, 0])))
     return events, bar
 
 

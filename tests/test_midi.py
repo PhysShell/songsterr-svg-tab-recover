@@ -61,3 +61,27 @@ def test_notes_are_ordered_and_in_range(recovery):
     events = _parse_track(to_bytes(recovery))
     assert events == sorted(events, key=lambda e: e[0])   # non-decreasing ticks
     assert all(0 <= e[2] <= 127 for e in events)
+
+
+def test_let_ring_ties_do_not_restrike():
+    """A let-ring note continues the previous identical pitch instead of being
+    struck again (Will Swan m81 whole chord let-ringing through m82)."""
+    import os
+    from songsterr_tab.notes import recover
+    from songsterr_tab.glyphs import DigitRecognizer
+    root = os.path.dirname(os.path.dirname(__file__))
+    fx = os.path.join(root, "fixtures", "will-swan.rendered.html")
+    if not os.path.exists(fx):
+        import pytest; pytest.skip("will-swan fixture not present")
+    rec = recover(open(fx, encoding="utf-8").read(),
+                  DigitRecognizer.load(os.path.join(root, "templates", "digits.json")))
+    events = _parse_track(to_bytes(rec))
+    W = 1920
+    # measure 81 starts at (81-1) whole notes; measure 82 one whole note later
+    on82 = [e for e in events if e[0] == 81 * W and e[1] == 0x90 and e[3] > 0]
+    assert not on82                                    # no fresh attack at m82
+    # the chord struck at m81 holds for two whole notes (D2=38, A2=45)
+    for pitch in (38, 45):
+        on = [e for e in events if e[0] == 80 * W and e[2] == pitch and e[1] == 0x90 and e[3] > 0]
+        off = [e for e in events if e[0] == 82 * W and e[2] == pitch and (e[1] == 0x80 or e[3] == 0)]
+        assert on and off

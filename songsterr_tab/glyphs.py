@@ -148,10 +148,10 @@ def bar_rest_value(g: Glyph, rows: Sequence[float]) -> Fraction:
 
 
 def looks_like_paren(g: Glyph) -> bool:
-    """A thin tall glyph on the stave: the parenthesis Songsterr draws around a
-    let-ring / tied note."""
+    """A thin tall glyph beside a notehead on any string: the parenthesis
+    Songsterr draws around a let-ring / tied note."""
     b = g.bbox
-    return b.height > 12.5 and b.width < 6.0 and 12.0 <= b.cy <= 40.0
+    return b.height > 12.5 and b.width < 6.0 and 6.0 <= b.cy <= 66.0
 
 
 def rest_value(g: Glyph) -> Optional[Fraction]:
